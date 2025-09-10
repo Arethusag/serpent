@@ -10,4 +10,4 @@ REM - /MDd    : Use debug multithreaded DLL runtime
 REM - /Fe     : Output executable name
 REM - /Fd     : Debug information file
 
-cl /nologo /TC /Zi /Od /W4 /MDd hello.c /Fe:"build/hello.exe" /Fo:"build/hello.obj" /Fd:"build/hello.pdb"
+cl /nologo /TC /Zi /Od /W4 /MDd main.c /Fe:"build/main.exe" /Fo:"build/main.obj" /Fd:"build/main.pdb"

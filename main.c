@@ -24,7 +24,7 @@ typedef struct {
 }GameState;
 
 
-static void enable_utf8_console(void) {
+void enable_utf8_console(void) {
 #ifdef _WIN32
 	SetConsoleOutputCP(CP_UTF8);
 #else
@@ -32,25 +32,32 @@ static void enable_utf8_console(void) {
 #endif
 }
 
+void enable_virtual_terminal_processing(void) {
+#ifdef _WIN32
+	HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD dwMode;
+	GetConsoleMode(hOutput, &dwMode);
+	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	if (!SetConsoleMode(hOutput, dwMode)) {
+		puts("SetConsoleMode failed.");
+		exit(1);
+	}
+#else
+	/* Nothing to do on POSIX; virtual terminal sequences are native */
+#endif
+}
+
 void set_console_dimensions(unsigned int *rows, unsigned int *columns) {
 #ifdef _WIN32
 	CONSOLE_SCREEN_BUFFER_INFO console_screen_buffer_info;
-	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-	*columns = (unsigned int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
-	*rows = (unsigned int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &console_screen_buffer_info);
+	*columns = (unsigned int)(console_screen_buffer_info.srWindow.Right - console_screen_buffer_info.srWindow.Left + 1);
+	*rows = (unsigned int)(console_screen_buffer_info.srWindow.Bottom - console_screen_buffer_info.srWindow.Top + 1);
 #else
 	struct winsize size;
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
 	*rows = (unsigned int)size.ws_row;
 	*columns = (unsigned int)size.ws_col;
-#endif
-}
-
-void clear_console_screen() {
-#ifdef _WIN32
-
-#else
-    puts("\033[2J\033[H");
 #endif
 }
 
@@ -65,6 +72,10 @@ void sleep_milliseconds(unsigned int milliseconds) {
 #else
     usleep(milliseconds * 1000);
 #endif
+}
+
+void calculate_screen_buffer(unsigned int *rows, unsigned int *cols) {
+	void* buffer_pointer = malloc();
 }
 
 int main() {
@@ -85,18 +96,28 @@ int main() {
     /* printf("Console columns: %d\n",console_state.columns); */
 	
 
-	/* Enable console support for UTF-8 (WIN32 Only) */
+	/* Console enablement functions */
 	enable_utf8_console();
+	enable_virtual_terminal_processing();
 
     /* Render loop */
 	full_block = "\xE2\x96\x88";
     interrupt = 0; /*TODO: implement SIGTERM handler*/
+
+	/* Clear screen */
+	puts("\033[2J\033[H");
+
+	/* Disable cursor */
+	puts("\033[?25l");
+
     while (!interrupt) {
         unsigned int i;
-        clear_console_screen();
-        for (i = 0; i < console_state.columns; i++) {
-            printf("%s", full_block);
-        }
+		puts("\033[H\033[2K");
+
+		/* TODO: implement screen buffer array */
+		for (i = 0; i < console_state.columns; i++) {
+			printf("%s", full_block);
+		}
         sleep_milliseconds(100);
     }
 
