@@ -5,6 +5,7 @@
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <time.h>
 #endif
 
 typedef struct {
@@ -35,31 +36,64 @@ void set_console_dimensions(unsigned int *rows, unsigned int *columns) {
 #ifdef _WIN32
 	CONSOLE_SCREEN_BUFFER_INFO console_screen_buffer_info;
 	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-	columns = (unsigned int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
-	rows = (unsigned int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+	*columns = (unsigned int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+	*rows = (unsigned int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
 #else
 	struct winsize size;
-	ioctl(STOUT_FILENO, TIOCGWINSZ, &size);
-	rows = (unsigned int)(size.ws_row);
-	columns = (unsigned int)(size.ws_col);
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+	*rows = (unsigned int)size.ws_row;
+	*columns = (unsigned int)size.ws_col;
+#endif
+}
+
+void clear_console_screen() {
+#ifdef _WIN32
+
+#else
+    puts("\033[2J\033[H");
+#endif
+}
+
+void sleep_milliseconds(unsigned int milliseconds) {
+#ifdef _WIN32
+    Sleep(milliseconds);
+#else
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
 #endif
 }
 
 int main() {
 
+    /* Declarations */
+	GameState game_state;
+	ConsoleState console_state;
+    char* full_block;
+    unsigned int interrupt;
+
 
 	/* Initialize Game State */
-	GameState game_state;
-	game_state.snake_length = 1;
+	game_state.snake_tail_length = 1;
 	
 	/* Get initial console dimensions */
-	ConsoleState console_state;
-	set_console_dimensions(cons);
+	set_console_dimensions(&console_state.rows, &console_state.columns);
+    printf("Console rows: %d\n",console_state.rows);
+    printf("Console columns: %d\n",console_state.columns);
 	
 
 	/* Enable console support for UTF-8 (WIN32 Only) */
 	enable_utf8_console();
 
-	char* full_block = "\xE2\x96\x88";
-	printf("%s\n", full_block);
+    /* Render loop */
+	full_block = "\xE2\x96\x88";
+    interrupt = 0;
+    while (!interrupt) {
+        clear_console_screen();
+        printf("%s\n", full_block);
+        sleep_milliseconds(100);
+    }
+
+    return 0;
 }
