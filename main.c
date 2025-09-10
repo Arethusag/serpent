@@ -57,11 +57,13 @@ void clear_console_screen() {
 void sleep_milliseconds(unsigned int milliseconds) {
 #ifdef _WIN32
     Sleep(milliseconds);
-#else
+#elif _POSIX_C_SOURCE >= 199309L
     struct timespec ts;
     ts.tv_sec = milliseconds / 1000;
     ts.tv_nsec = (milliseconds % 1000) * 1000000L;
     nanosleep(&ts, NULL);
+#else
+    usleep(milliseconds * 1000);
 #endif
 }
 
@@ -79,8 +81,8 @@ int main() {
 	
 	/* Get initial console dimensions */
 	set_console_dimensions(&console_state.rows, &console_state.columns);
-    printf("Console rows: %d\n",console_state.rows);
-    printf("Console columns: %d\n",console_state.columns);
+    /* printf("Console rows: %d\n",console_state.rows); */
+    /* printf("Console columns: %d\n",console_state.columns); */
 	
 
 	/* Enable console support for UTF-8 (WIN32 Only) */
@@ -88,10 +90,13 @@ int main() {
 
     /* Render loop */
 	full_block = "\xE2\x96\x88";
-    interrupt = 0;
+    interrupt = 0; /*TODO: implement SIGTERM handler*/
     while (!interrupt) {
+        unsigned int i;
         clear_console_screen();
-        printf("%s\n", full_block);
+        for (i = 0; i < console_state.columns; i++) {
+            printf("%s", full_block);
+        }
         sleep_milliseconds(100);
     }
 
