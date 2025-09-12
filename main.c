@@ -29,6 +29,13 @@ typedef struct {
 	unsigned int columns;
 }ConsoleState;
 
+typedef enum {
+    NORTH,
+    SOUTH,
+    EAST,
+    WEST
+}Direction;
+
 typedef struct {
 	unsigned int snake_tail_length;
     unsigned int first_key_pressed;
@@ -43,13 +50,6 @@ typedef enum {
   SNAKE,
   APPLE
 }Cell;
-
-typedef enum {
-    NORTH,
-    SOUTH,
-    EAST,
-    WEST
-}Direction;
 
 /* Platform specific terminal handling */
 #ifdef _WIN32
@@ -72,11 +72,12 @@ void Disable_Raw_Mode(void) {
 }
 
 void Enable_Raw_Mode(void) {
+    struct termios raw_termios; 
     tcgetattr(STDIN_FILENO, &original_termios);
     atexit(Disable_Raw_Mode);
-    struct termios raw_termios = orig_termios;
+    raw_termios = original_termios;
     raw_termios.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw_termios);
 }
 #endif
 
@@ -94,7 +95,7 @@ void Set_Console_Dimensions(unsigned int *rows, unsigned int *columns) {
 #endif
 }
 
-void sleep_milliseconds(unsigned int milliseconds) {
+void Sleep_Milliseconds(unsigned int milliseconds) {
 #ifdef _WIN32
     Sleep(milliseconds);
 #elif _POSIX_C_SOURCE >= 199309L
@@ -107,7 +108,7 @@ void sleep_milliseconds(unsigned int milliseconds) {
 #endif
 }
 
-unsigned int get_arrow_key_press(void) {
+unsigned int Get_Arrow_Key_Press(void) {
 #ifdef _WIN32
     int console_input_character;
     /* _kbhit() returns true if there are any unread characters in the keyboard input buffer in a non-blocking way */
@@ -137,29 +138,29 @@ unsigned int get_arrow_key_press(void) {
     }
     return KEY_NONE;
 #else
-    char sequence[3];
+    char input_sequence[3];
     int return_value;
 
     /* Attempt to read a character. read() will return -1 if no data is available */
-    return_value = read(STDIN_FILENO, &sequence[0], 1);
+    return_value = read(STDIN_FILENO, &input_sequence[0], 1);
     if (return_value <= 0) {
         return KEY_NONE;
     }
 
-    if (seq[0] == '\x1b') {
+    if (input_sequence[0] == '\x1b') {
         
-        return_value = read(STDIN_FILENO, &sequence[1], 1);
+        return_value = read(STDIN_FILENO, &input_sequence[1], 1);
         if (return_value <= 0) {
             return KEY_NONE;
         }
         
-        return_value = read(STDIN_FILENO, &sequence[2], 1);
+        return_value = read(STDIN_FILENO, &input_sequence[2], 1);
         if (return_value <= 0) {
             return KEY_NONE;
         }
 
-        if (sequence[1] == '[') {
-            switch (console_input_character) {
+        if (input_sequence[1] == '[') {
+            switch (input_sequence[2]) {
                 case 'A':
                     return KEY_UP;
                 case 'B':
@@ -174,7 +175,7 @@ unsigned int get_arrow_key_press(void) {
         }
         return KEY_NONE;
     }
-    return KEY_NONE
+    return KEY_NONE;
 #endif
 }
 
@@ -191,7 +192,7 @@ char* Allocate_Frame_Buffer(unsigned int rows, unsigned int columns) {
 
     size_t number_of_bytes = rows * (columns * max_bytes_per_cell + newline) + padding;
     return malloc(number_of_bytes);
-};
+}
 
 void Initialize_Console_Grid(unsigned int rows, unsigned int columns, Cell *console_grid) {
     unsigned int r, c;
@@ -287,6 +288,7 @@ void Move_Snake_Head(Direction snake_direction, unsigned int rows, unsigned int 
 
 /* Renders the console_grid to frame_buffer (not NULL-terminated). Returns the number of bytes written. */
 size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
+    unsigned int r, c;
 
     /* Prepend home escape so each frame starts at row 1 column 1 */
     char* home = "\x1b[H";
@@ -296,7 +298,6 @@ size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns,
     offset += home_length;
 
     /* Insert frame information */
-    unsigned int r, c;
     for (r = 0; r < rows; r++) {
         for (c = 0; c < columns; c++) {
             char* pixel;
@@ -330,7 +331,7 @@ size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns,
         }
     }
     return offset;
-};
+}
 
 int main() {
 
@@ -375,7 +376,7 @@ int main() {
     while (!interrupt) {
 
         /* Register arrow key inputs */
-        arrow_key_pressed = Get_Arrow_key_Press();
+        arrow_key_pressed = Get_Arrow_Key_Press();
         if (arrow_key_pressed != KEY_NONE) {
 
             /* Update first key pressed indicator */
@@ -399,7 +400,7 @@ int main() {
 			}
         }
         if (game_state.first_key_pressed == 1) {
-            Move_Snake_Head(game_state.snake_direction, game_state.rows, game_state.columns, &game_state.snake_head_coordinate, console_grid);
+            Move_Snake_Head(game_state.snake_direction, console_state.rows, console_state.columns, &game_state.snake_head_coordinate, console_grid);
         }
         
         frame_buffer_length = Render_Frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
