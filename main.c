@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <termios.h>
+#include <fcntl.h>
 #endif
 
 #define KEY_NONE  0
@@ -50,31 +51,36 @@ typedef enum {
     WEST
 }Direction;
 
-
-void enable_utf8_console(void) {
+/* Platform specific terminal handling */
 #ifdef _WIN32
+void Enable_UTF8_Console(void) {
 	SetConsoleOutputCP(CP_UTF8);
-#else
-	/* Nothing to do on POSIX; rely on terminal being UTF-8 */
-#endif
 }
 
-void enable_virtual_terminal_processing(void) {
-#ifdef _WIN32
+void Enable_Virtual_Terminal_Processing(void) {
 	HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 	DWORD dwMode;
 	GetConsoleMode(hOutput, &dwMode);
 	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-	if (!SetConsoleMode(hOutput, dwMode)) {
-		puts("SetConsoleMode failed.");
-		exit(1);
-	}
-#else
-	/* Nothing to do on POSIX; virtual terminal sequences enabled */
-#endif
 }
 
-void set_console_dimensions(unsigned int *rows, unsigned int *columns) {
+#else
+struct termios original_termios;
+
+void Disable_Raw_Mode(void) {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
+}
+
+void Enable_Raw_Mode(void) {
+    tcgetattr(STDIN_FILENO, &original_termios);
+    atexit(Disable_Raw_Mode);
+    struct termios raw_termios = orig_termios;
+    raw_termios.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+#endif
+
+void Set_Console_Dimensions(unsigned int *rows, unsigned int *columns) {
 #ifdef _WIN32
 	CONSOLE_SCREEN_BUFFER_INFO console_screen_buffer_info;
 	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &console_screen_buffer_info);
@@ -131,16 +137,53 @@ unsigned int get_arrow_key_press(void) {
     }
     return KEY_NONE;
 #else
-    /* Placeholder for POSIX systems */
+    char sequence[3];
+    int return_value;
+
+    /* Attempt to read a character. read() will return -1 if no data is available */
+    return_value = read(STDIN_FILENO, &sequence[0], 1);
+    if (return_value <= 0) {
+        return KEY_NONE;
+    }
+
+    if (seq[0] == '\x1b') {
+        
+        return_value = read(STDIN_FILENO, &sequence[1], 1);
+        if (return_value <= 0) {
+            return KEY_NONE;
+        }
+        
+        return_value = read(STDIN_FILENO, &sequence[2], 1);
+        if (return_value <= 0) {
+            return KEY_NONE;
+        }
+
+        if (sequence[1] == '[') {
+            switch (console_input_character) {
+                case 'A':
+                    return KEY_UP;
+                case 'B':
+                    return KEY_DOWN;
+                case 'C':
+                    return KEY_RIGHT;
+                case 'D':
+                    return KEY_LEFT;
+                default:
+                    return KEY_NONE;
+            }
+        }
+        return KEY_NONE;
+    }
+    return KEY_NONE
 #endif
 }
 
-Cell* allocate_console_grid(unsigned int rows, unsigned int columns) {
+Cell* Allocate_Console_Grid(unsigned int rows, unsigned int columns) {
     unsigned int number_of_cells = rows * columns;
 	return malloc(number_of_cells * sizeof(Cell));
 }
 
-char* allocate_frame_buffer(unsigned int rows, unsigned int columns) {
+char* Allocate_Frame_Buffer(unsigned int rows, unsigned int columns) {
 	/* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
     size_t max_bytes_per_cell = 12;
     size_t newline = 1;
@@ -150,7 +193,7 @@ char* allocate_frame_buffer(unsigned int rows, unsigned int columns) {
     return malloc(number_of_bytes);
 };
 
-void initialize_console_grid(unsigned int rows, unsigned int columns, Cell *console_grid) {
+void Initialize_Console_Grid(unsigned int rows, unsigned int columns, Cell *console_grid) {
     unsigned int r, c;
     for (r = 0; r < rows; r++) {
         for (c = 0; c < columns; c++) {
@@ -159,7 +202,7 @@ void initialize_console_grid(unsigned int rows, unsigned int columns, Cell *cons
     }
 }
 
-void update_console_border(unsigned int rows, unsigned int columns, Cell *console_grid) {
+void Update_Console_Border(unsigned int rows, unsigned int columns, Cell *console_grid) {
     unsigned int r, c;
     for (r = 0; r < rows; r++) {
         for (c = 0; c < columns; c++) {
@@ -170,24 +213,24 @@ void update_console_border(unsigned int rows, unsigned int columns, Cell *consol
     }
 }
 
-UIntVector2 calculate_random_coordinate(unsigned int rows, unsigned int columns) {
+UIntVector2 Calculate_Random_Coordinate(unsigned int rows, unsigned int columns) {
     UIntVector2 coordinate;
     coordinate.x = 1 + rand() % (columns - 2);
     coordinate.y = 1 + rand() % (rows - 2);
     return coordinate;
 }
 
-void place_apple(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* apple_coordinate) {
-    *apple_coordinate = calculate_random_coordinate(rows, columns);
+void Place_Apple(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* apple_coordinate) {
+    *apple_coordinate = Calculate_Random_Coordinate(rows, columns);
 	console_grid[apple_coordinate->y * columns + apple_coordinate->x] = APPLE;
 }
 
-void place_snake_head(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* snake_head_coordinate) {
-    *snake_head_coordinate = calculate_random_coordinate(rows, columns);
+void Place_Snake_Head(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* snake_head_coordinate) {
+    *snake_head_coordinate = Calculate_Random_Coordinate(rows, columns);
     console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
 }
 
-void exit_cleanup(void) {
+void Exit_Cleanup(void) {
     /* Show cursor and leave alternate screen */
     fputs("\x1b[?25h\x1b[?1049l", stdout);
 
@@ -197,7 +240,7 @@ void exit_cleanup(void) {
     fflush(stdout);
 }
 
-void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int columns, UIntVector2* snake_head_coordinate, Cell* console_grid) {
+void Move_Snake_Head(Direction snake_direction, unsigned int rows, unsigned int columns, UIntVector2* snake_head_coordinate, Cell* console_grid) {
     switch (snake_direction) {
         case NORTH:
             if (snake_head_coordinate->y > 1) {
@@ -205,7 +248,7 @@ void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int 
                 snake_head_coordinate->y -= 1;
                 console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
             } else {
-                exit_cleanup();
+                Exit_Cleanup();
                 exit(0);
             }
         break;
@@ -215,7 +258,7 @@ void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int 
                 snake_head_coordinate->y += 1;
                 console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
             } else {
-                exit_cleanup();
+                Exit_Cleanup();
                 exit(0);
             }
         break;
@@ -225,7 +268,7 @@ void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int 
                 snake_head_coordinate->x += 1;
                 console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
             } else {
-                exit_cleanup();
+                Exit_Cleanup();
                 exit(0);
             }
         break;
@@ -235,7 +278,7 @@ void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int 
                 snake_head_coordinate->x -= 1;
                 console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
             } else {
-                exit_cleanup();
+                Exit_Cleanup();
                 exit(0);
             }
         break;
@@ -243,7 +286,7 @@ void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int 
 }
 
 /* Renders the console_grid to frame_buffer (not NULL-terminated). Returns the number of bytes written. */
-size_t render_frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
+size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
 
     /* Prepend home escape so each frame starts at row 1 column 1 */
     char* home = "\x1b[H";
@@ -304,31 +347,35 @@ int main() {
     srand(time(NULL));
 
 	/* Get initial console dimensions */
-	set_console_dimensions(&console_state.rows, &console_state.columns);
+	Set_Console_Dimensions(&console_state.rows, &console_state.columns);
 
 	/* Console enablement functions */
-	enable_utf8_console();
-	enable_virtual_terminal_processing();
-
+#ifdef _WIN32
+	Enable_UTF8_Console();
+	Enable_Virtual_Terminal_Processing();
+#else
+    Enable_Raw_Mode();
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK); /* Set stdin to non-blocking */
+#endif
     /* Enter alternate screen and hide cursor */
     fputs("\x1b[?1049h\x1b[?25l", stdout);
 
     /* Setup console grid */
-    console_grid = allocate_console_grid(console_state.rows, console_state.columns);
-    initialize_console_grid(console_state.rows, console_state.columns, console_grid);
-    update_console_border(console_state.rows, console_state.columns, console_grid);
-    place_apple(console_state.rows, console_state.columns, console_grid, &game_state.apple_coordinate);
-    place_snake_head(console_state.rows, console_state.columns, console_grid, &game_state.snake_head_coordinate);
+    console_grid = Allocate_Console_Grid(console_state.rows, console_state.columns);
+    Initialize_Console_Grid(console_state.rows, console_state.columns, console_grid);
+    Update_Console_Border(console_state.rows, console_state.columns, console_grid);
+    Place_Apple(console_state.rows, console_state.columns, console_grid, &game_state.apple_coordinate);
+    Place_Snake_Head(console_state.rows, console_state.columns, console_grid, &game_state.snake_head_coordinate);
     
     /* Setup frame buffer */
-    frame_buffer = allocate_frame_buffer(console_state.rows, console_state.columns);
+    frame_buffer = Allocate_Frame_Buffer(console_state.rows, console_state.columns);
 
     /* Game loop */
     interrupt = 0; /*TODO: implement SIGTERM handler*/
     while (!interrupt) {
 
         /* Register arrow key inputs */
-        arrow_key_pressed = get_arrow_key_press();
+        arrow_key_pressed = Get_Arrow_key_Press();
         if (arrow_key_pressed != KEY_NONE) {
 
             /* Update first key pressed indicator */
@@ -352,14 +399,14 @@ int main() {
 			}
         }
         if (game_state.first_key_pressed == 1) {
-            move_snake_head(game_state.snake_direction, game_state.rows, game_state.columns, &game_state.snake_head_coordinate, console_grid);
+            Move_Snake_Head(game_state.snake_direction, game_state.rows, game_state.columns, &game_state.snake_head_coordinate, console_grid);
         }
         
-        frame_buffer_length = render_frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
+        frame_buffer_length = Render_Frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
         fwrite(frame_buffer, 1, frame_buffer_length, stdout);
         fflush(stdout);
-        sleep_milliseconds(120); /* 8 FPS */
+        Sleep_Milliseconds(120); /* 8 FPS */
     }
-    exit_cleanup();
+    Exit_Cleanup();
     return 0;
 }
