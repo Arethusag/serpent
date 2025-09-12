@@ -33,6 +33,7 @@ typedef struct {
     unsigned int first_key_pressed;
 	UIntVector2 snake_head_coordinate;
     UIntVector2 apple_coordinate;
+    Direction snake_direction;
 }GameState;
 
 typedef enum {
@@ -141,11 +142,11 @@ Cell* allocate_console_grid(unsigned int rows, unsigned int columns) {
 
 char* allocate_frame_buffer(unsigned int rows, unsigned int columns) {
 	/* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
-    size_t max_per_cell = 12;
+    size_t max_bytes_per_cell = 12;
     size_t newline = 1;
     size_t padding = 32;
 
-    size_t number_of_bytes = rows * (columns * max_per_cell + newline) + padding;
+    size_t number_of_bytes = rows * (columns * max_bytes_per_cell + newline) + padding;
     return malloc(number_of_bytes);
 };
 
@@ -186,8 +187,62 @@ void place_snake_head(unsigned int rows, unsigned int columns, Cell* console_gri
     console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
 }
 
-/* render_frame: renders the console_grid to frame_buffer (not NULL-terminated)
-   returns the number of bytes written. */
+void exit_cleanup(void) {
+    /* Show cursor and leave alternate screen */
+    fputs("\x1b[?25h\x1b[?1049l", stdout);
+
+	/* Clear screen */
+	fputs("\033[2J\033[H", stdout);
+    
+    fflush(stdout);
+}
+
+void move_snake_head(Direction snake_direction, unsigned int rows, unsigned int columns, UIntVector2* snake_head_coordinate, Cell* console_grid) {
+    switch (snake_direction) {
+        case NORTH:
+            if (snake_head_coordinate->y > 1) {
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
+                snake_head_coordinate->y -= 1;
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+            } else {
+                exit_cleanup();
+                exit(0);
+            }
+        break;
+        case SOUTH:
+            if (snake_head_coordinate->y < (rows - 1)) {
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
+                snake_head_coordinate->y += 1;
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+            } else {
+                exit_cleanup();
+                exit(0);
+            }
+        break;
+        case EAST:
+            if (snake_head_coordinate->x < (columns - 1)) {
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
+                snake_head_coordinate->x += 1;
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+            } else {
+                exit_cleanup();
+                exit(0);
+            }
+        break;
+        case WEST:
+            if (snake_head_coordinate->x > 1) {
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
+                snake_head_coordinate->x -= 1;
+                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+            } else {
+                exit_cleanup();
+                exit(0);
+            }
+        break;
+    }
+}
+
+/* Renders the console_grid to frame_buffer (not NULL-terminated). Returns the number of bytes written. */
 size_t render_frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
 
     /* Prepend home escape so each frame starts at row 1 column 1 */
@@ -283,14 +338,21 @@ int main() {
 
             switch (arrow_key_pressed) {
             case KEY_UP:
+                game_state.snake_direction = NORTH;
 			break;
             case KEY_DOWN:
+                game_state.snake_direction = SOUTH;
 			break;
             case KEY_RIGHT:
+                game_state.snake_direction = EAST;
 			break;
             case KEY_LEFT:
+                game_state.snake_direction = WEST;
 			break;
 			}
+        }
+        if (game_state.first_key_pressed == 1) {
+            move_snake_head(game_state.snake_direction, game_state.rows, game_state.columns, &game_state.snake_head_coordinate, console_grid);
         }
         
         frame_buffer_length = render_frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
@@ -298,12 +360,6 @@ int main() {
         fflush(stdout);
         sleep_milliseconds(120); /* 8 FPS */
     }
-    /* Show cursor and leave alternate screen */
-    fputs("\x1b[?25h\x1b[?1049l", stdout);
-
-	/* Clear screen */
-	fputs("\033[2J\033[H", stdout);
-    
-    fflush(stdout);
+    exit_cleanup();
     return 0;
 }
