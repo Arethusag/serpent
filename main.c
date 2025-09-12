@@ -1,14 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
 #include <windows.h>
+#include <conio.h>
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <time.h>
+#include <termios.h>
 #endif
+
+#define KEY_NONE  0
+#define KEY_UP    1001
+#define KEY_DOWN  1002
+#define KEY_LEFT  1003
+#define KEY_RIGHT 1004
 
 typedef struct {
 	unsigned int x;
@@ -22,7 +30,9 @@ typedef struct {
 
 typedef struct {
 	unsigned int snake_tail_length;
-	UIntVector2 snake_head_position;
+    unsigned int first_key_pressed;
+	UIntVector2 snake_head_coordinate;
+    UIntVector2 apple_coordinate;
 }GameState;
 
 typedef enum {
@@ -31,6 +41,13 @@ typedef enum {
   SNAKE,
   APPLE
 }Cell;
+
+typedef enum {
+    NORTH,
+    SOUTH,
+    EAST,
+    WEST
+}Direction;
 
 
 void enable_utf8_console(void) {
@@ -83,18 +100,52 @@ void sleep_milliseconds(unsigned int milliseconds) {
 #endif
 }
 
+unsigned int get_arrow_key_press(void) {
+#ifdef _WIN32
+    int console_input_character;
+    /* _kbhit() returns true if there are any unread characters in the keyboard input buffer in a non-blocking way */
+    if (_kbhit()) {
+        console_input_character = _getch();
+
+        /* Arrow keys in virtual terminal mode send a three-character sequence: ESC (27, '[', and then 'A', 'B', 'C', or 'D'. */
+        if (console_input_character == 27) {
+            if (_kbhit() && _getch() == '[') {
+                if (_kbhit()) {
+                    console_input_character = _getch();
+                    switch (console_input_character) {
+						case 'A':
+							return KEY_UP;
+						case 'B':
+							return KEY_DOWN;
+						case 'C':
+							return KEY_RIGHT;
+						case 'D':
+							return KEY_LEFT;
+                        default:
+                            return KEY_NONE;
+                    }
+                }
+            }
+        }
+    }
+    return KEY_NONE;
+#else
+    /* Placeholder for POSIX systems */
+#endif
+}
+
 Cell* allocate_console_grid(unsigned int rows, unsigned int columns) {
     unsigned int number_of_cells = rows * columns;
 	return malloc(number_of_cells * sizeof(Cell));
 }
 
 char* allocate_frame_buffer(unsigned int rows, unsigned int columns) {
-    size_t per_cell_max = 3;
+	/* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
+    size_t max_per_cell = 12;
     size_t newline = 1;
     size_t padding = 32;
 
-    /* Each row may have (cols * 3) bytes plus one newline (except for the last row */
-    size_t number_of_bytes = rows * (columns * per_cell_max + newline) + padding;
+    size_t number_of_bytes = rows * (columns * max_per_cell + newline) + padding;
     return malloc(number_of_bytes);
 };
 
@@ -118,6 +169,23 @@ void update_console_border(unsigned int rows, unsigned int columns, Cell *consol
     }
 }
 
+UIntVector2 calculate_random_coordinate(unsigned int rows, unsigned int columns) {
+    UIntVector2 coordinate;
+    coordinate.x = 1 + rand() % (columns - 2);
+    coordinate.y = 1 + rand() % (rows - 2);
+    return coordinate;
+}
+
+void place_apple(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* apple_coordinate) {
+    *apple_coordinate = calculate_random_coordinate(rows, columns);
+	console_grid[apple_coordinate->y * columns + apple_coordinate->x] = APPLE;
+}
+
+void place_snake_head(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* snake_head_coordinate) {
+    *snake_head_coordinate = calculate_random_coordinate(rows, columns);
+    console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+}
+
 /* render_frame: renders the console_grid to frame_buffer (not NULL-terminated)
    returns the number of bytes written. */
 size_t render_frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
@@ -137,7 +205,8 @@ size_t render_frame(char* frame_buffer, unsigned int rows, unsigned int columns,
             size_t pixel_length;
 			switch (console_grid[r * columns + c]) {
 				case BLOCK:
-                    pixel = "\xE2\x96\x88";
+                    /* "\x1b[37m" = Light Grey */
+                    pixel = "\x1b[37m\xE2\x96\x88\x1b[0m";
                     pixel_length = strlen(pixel);
 				break;
 				case EMPTY:
@@ -145,11 +214,13 @@ size_t render_frame(char* frame_buffer, unsigned int rows, unsigned int columns,
                     pixel_length = strlen(pixel);
 				break;
 				case SNAKE:
-                    pixel = "\xE2\x96\x88";
+                    /* "\x1b[32m" = Green */
+                    pixel = "\x1b[32m\xE2\x96\x88\x1b[0m";
                     pixel_length = strlen(pixel);
 				break;
 				case APPLE:
-                    pixel = "\xE2\x96\x88";
+                    /* "\x1b[31m" = Red */
+                    pixel = "\x1b[31m\xE2\x96\x88\x1b[0m";
                     pixel_length = strlen(pixel);
 				break;
 			}
@@ -172,10 +243,11 @@ int main() {
     Cell* console_grid;
     char* frame_buffer;
     size_t frame_buffer_length;
+    unsigned int arrow_key_pressed;
 
-	/* Initialize Game State */
-	game_state.snake_tail_length = 1;
-	
+    /* Set seed */
+    srand(time(NULL));
+
 	/* Get initial console dimensions */
 	set_console_dimensions(&console_state.rows, &console_state.columns);
 
@@ -190,12 +262,37 @@ int main() {
     console_grid = allocate_console_grid(console_state.rows, console_state.columns);
     initialize_console_grid(console_state.rows, console_state.columns, console_grid);
     update_console_border(console_state.rows, console_state.columns, console_grid);
+    place_apple(console_state.rows, console_state.columns, console_grid, &game_state.apple_coordinate);
+    place_snake_head(console_state.rows, console_state.columns, console_grid, &game_state.snake_head_coordinate);
     
     /* Setup frame buffer */
     frame_buffer = allocate_frame_buffer(console_state.rows, console_state.columns);
 
+    /* Game loop */
     interrupt = 0; /*TODO: implement SIGTERM handler*/
     while (!interrupt) {
+
+        /* Register arrow key inputs */
+        arrow_key_pressed = get_arrow_key_press();
+        if (arrow_key_pressed != KEY_NONE) {
+
+            /* Update first key pressed indicator */
+            if (game_state.first_key_pressed == 0) {
+                game_state.first_key_pressed = 1;
+            }
+
+            switch (arrow_key_pressed) {
+            case KEY_UP:
+			break;
+            case KEY_DOWN:
+			break;
+            case KEY_RIGHT:
+			break;
+            case KEY_LEFT:
+			break;
+			}
+        }
+        
         frame_buffer_length = render_frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
         fwrite(frame_buffer, 1, frame_buffer_length, stdout);
         fflush(stdout);
