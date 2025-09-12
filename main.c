@@ -57,13 +57,27 @@ void Enable_UTF8_Console(void) {
 	SetConsoleOutputCP(CP_UTF8);
 }
 
-void Enable_Virtual_Terminal_Processing(void) {
-	HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-	DWORD dwMode;
-	GetConsoleMode(hOutput, &dwMode);
-	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-}
+void Enable_Virtual_Terminal_IO(void) {
+    DWORD dword_mode;
 
+	/* Enable Virtual Terminal Output */
+    HANDLE handle_output = GetStdHandle(STD_OUTPUT_HANDLE);
+	GetConsoleMode(handle_output, &dword_mode);
+	dword_mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    if (!SetConsoleMode(handle_output, dword_mode)) {
+        puts("SetConsoleMode failed.");
+        exit(1);
+    }
+    
+    /* Enable Virtual Terminal Input */
+	HANDLE handle_input = GetStdHandle(STD_INPUT_HANDLE);
+    GetConsoleMode(handle_input, &dword_mode);
+    dword_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+    if (!SetConsoleMode(handle_input, dword_mode)) {
+        puts("SetConsoleMode failed.");
+        exit(1);
+    }
+}
 #else
 struct termios original_termios;
 
@@ -353,11 +367,12 @@ int main() {
 	/* Console enablement functions */
 #ifdef _WIN32
 	Enable_UTF8_Console();
-	Enable_Virtual_Terminal_Processing();
+	Enable_Virtual_Terminal_IO();
 #else
     Enable_Raw_Mode();
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK); /* Set stdin to non-blocking */
 #endif
+
     /* Enter alternate screen and hide cursor */
     fputs("\x1b[?1049h\x1b[?25l", stdout);
 
