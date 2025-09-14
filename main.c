@@ -19,36 +19,42 @@
 #define KEY_LEFT  1003
 #define KEY_RIGHT 1004
 
-typedef struct {
-	unsigned int x;
-	unsigned int y;
-}UIntVector2;
-
-typedef struct {
-	unsigned int rows;
-	unsigned int columns;
-}ConsoleState;
-
 typedef enum {
     NORTH,
     SOUTH,
     EAST,
-    WEST
+    WEST,
+    NONE
 }Direction;
 
+typedef enum {
+    BORDER,
+    EMPTY,
+    SNAKE,
+    APPLE
+}TileType;
+
 typedef struct {
-	unsigned int snake_tail_length;
-    unsigned int first_key_pressed;
-	UIntVector2 snake_head_coordinate;
-    UIntVector2 apple_coordinate;
-    Direction snake_direction;
+	unsigned int row;
+	unsigned int col;
+}Coordinate;
+
+typedef struct {
+	unsigned int row_count;
+	unsigned int col_count;
+}ConsoleState;
+
+typedef struct {
+    unsigned int is_game_init;
+	Coordinate   head_coord;
+	Coordinate   tail_coord;
+    Coordinate   apple_coord;
+    Direction    head_dir;
 }GameState;
 
-typedef enum {
-  BLOCK,
-  EMPTY,
-  SNAKE,
-  APPLE
+typedef struct {
+    TileType  tile_type;
+    Direction travel_dir;
 }Cell;
 
 /* Platform specific terminal handling */
@@ -74,24 +80,24 @@ void Disable_Raw_Mode(void) {
 void Enable_Raw_Mode(void) {
     struct termios raw_termios; 
     tcgetattr(STDIN_FILENO, &original_termios);
-    atexit(Disable_Raw_Mode);
+    atexit(Disable_Raw_Mode); /* Register Disable_Raw_Mode() function to run on exit */
     raw_termios = original_termios;
     raw_termios.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw_termios);
 }
 #endif
 
-void Set_Console_Dimensions(unsigned int *rows, unsigned int *columns) {
+void Set_Console_Dimensions(unsigned int *row_count, unsigned int *col_count) {
 #ifdef _WIN32
 	CONSOLE_SCREEN_BUFFER_INFO console_screen_buffer_info;
 	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &console_screen_buffer_info);
-	*columns = (unsigned int)(console_screen_buffer_info.srWindow.Right - console_screen_buffer_info.srWindow.Left + 1);
-	*rows = (unsigned int)(console_screen_buffer_info.srWindow.Bottom - console_screen_buffer_info.srWindow.Top + 1);
+	*col_count = (unsigned int)(console_screen_buffer_info.srWindow.Right - console_screen_buffer_info.srWindow.Left + 1);
+	*row_count = (unsigned int)(console_screen_buffer_info.srWindow.Bottom - console_screen_buffer_info.srWindow.Top + 1);
 #else
 	struct winsize size;
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-	*rows = (unsigned int)size.ws_row;
-	*columns = (unsigned int)size.ws_col;
+	*row_count = (unsigned int)size.ws_row;
+	*col_count = (unsigned int)size.ws_col;
 #endif
 }
 
@@ -110,17 +116,18 @@ void Sleep_Milliseconds(unsigned int milliseconds) {
 
 unsigned int Get_Arrow_Key_Press(void) {
 #ifdef _WIN32
-    int console_input_character;
+    int input_char;
+
     /* _kbhit() returns true if there are any unread characters in the keyboard input buffer in a non-blocking way */
     if (_kbhit()) {
-        console_input_character = _getch();
+        input_char = _getch();
 
         /* Arrow keys in virtual terminal mode send a three-character sequence: ESC (27, '[', and then 'A', 'B', 'C', or 'D'. */
-        if (console_input_character == 27) {
+        if (input_char == 27) {
             if (_kbhit() && _getch() == '[') {
                 if (_kbhit()) {
-                    console_input_character = _getch();
-                    switch (console_input_character) {
+                    input_char = _getch();
+                    switch (input_char) {
 						case 'A':
 							return KEY_UP;
 						case 'B':
@@ -138,29 +145,29 @@ unsigned int Get_Arrow_Key_Press(void) {
     }
     return KEY_NONE;
 #else
-    char input_sequence[3];
-    int return_value;
+    char input_char_seq[3];
+    int return_val;
 
     /* Attempt to read a character. read() will return -1 if no data is available */
-    return_value = read(STDIN_FILENO, &input_sequence[0], 1);
-    if (return_value <= 0) {
+    return_val = read(STDIN_FILENO, &input_char_seq[0], 1);
+    if (return_val <= 0) {
         return KEY_NONE;
     }
 
-    if (input_sequence[0] == '\x1b') {
+    if (input_char_seq[0] == '\x1b') {
         
-        return_value = read(STDIN_FILENO, &input_sequence[1], 1);
-        if (return_value <= 0) {
+        return_val = read(STDIN_FILENO, &input_char_seq[1], 1);
+        if (return_val <= 0) {
             return KEY_NONE;
         }
         
-        return_value = read(STDIN_FILENO, &input_sequence[2], 1);
-        if (return_value <= 0) {
+        return_val = read(STDIN_FILENO, &input_char_seq[2], 1);
+        if (return_val <= 0) {
             return KEY_NONE;
         }
 
-        if (input_sequence[1] == '[') {
-            switch (input_sequence[2]) {
+        if (input_char_seq[1] == '[') {
+            switch (input_char_seq[2]) {
                 case 'A':
                     return KEY_UP;
                 case 'B':
@@ -179,154 +186,145 @@ unsigned int Get_Arrow_Key_Press(void) {
 #endif
 }
 
-Cell* Allocate_Console_Grid(unsigned int rows, unsigned int columns) {
-    unsigned int number_of_cells = rows * columns;
+Cell* Allocate_Console_Grid(unsigned int row_count, unsigned int col_count) {
+    unsigned int number_of_cells = row_count * col_count;
 	return malloc(number_of_cells * sizeof(Cell));
 }
 
-char* Allocate_Frame_Buffer(unsigned int rows, unsigned int columns) {
-	/* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
-    size_t max_bytes_per_cell = 12;
+char* Allocate_Frame_Buffer(unsigned int row_count, unsigned int col_count) {
+    size_t max_bytes_per_cell = 12; /* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
     size_t newline = 1;
     size_t padding = 32;
-
-    size_t number_of_bytes = rows * (columns * max_bytes_per_cell + newline) + padding;
+    size_t number_of_bytes = row_count * (col_count * max_bytes_per_cell + newline) + padding;
     return malloc(number_of_bytes);
 }
 
-void Initialize_Console_Grid(unsigned int rows, unsigned int columns, Cell *console_grid) {
-    unsigned int r, c;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < columns; c++) {
-            console_grid[r * columns + c] = EMPTY;
-        }
-    }
+unsigned int Calculate_Index(unsigned int col_count, unsigned int row, unsigned int col) {
+    unsigned int index = row * col_count + col;
+    return index;
 }
 
-void Update_Console_Border(unsigned int rows, unsigned int columns, Cell *console_grid) {
-    unsigned int r, c;
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < columns; c++) {
-            if (r == 0 || c == 0 || r == rows - 1 || c == columns - 1) {
-                console_grid[r * columns + c] = BLOCK;
+unsigned int Detect_Border(unsigned int row_count, unsigned int col_count, unsigned int row, unsigned int col) {
+    if (row == 0 || col == 0 || row == row_count - 1 || col == col_count - 1) {
+        return 1;
+    } else {
+        return 0;
+    } 
+}
+
+void Initialize_Console_Grid(unsigned int row_count, unsigned int col_count, Cell *console_grid) {
+    unsigned int row, col, index;
+    for (row = 0; row < row_count; row++) {
+        for (col = 0; col < col_count; col++) {
+            index = Calculate_Index(col_count, row, col);
+            console_grid[index].travel_dir = NONE;
+            if (Detect_Border(row_count, col_count, row, col)) {
+                console_grid[index].tile_type = BORDER;
+            } else {
+                console_grid[index].tile_type = EMPTY;
             }
         }
     }
 }
 
-UIntVector2 Calculate_Random_Coordinate(unsigned int rows, unsigned int columns) {
-    UIntVector2 coordinate;
-    coordinate.x = 1 + rand() % (columns - 2);
-    coordinate.y = 1 + rand() % (rows - 2);
-    return coordinate;
+Coordinate Calculate_Random_Coordinate(unsigned int row_count, unsigned int col_count) {
+    Coordinate rand_coord;
+    rand_coord.col = 1 + rand() % (col_count - 2);
+    rand_coord.row = 1 + rand() % (row_count - 2);
+    return rand_coord;
 }
 
-void Place_Apple(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* apple_coordinate) {
-    *apple_coordinate = Calculate_Random_Coordinate(rows, columns);
-	console_grid[apple_coordinate->y * columns + apple_coordinate->x] = APPLE;
+void Place_Apple(unsigned int row_count, unsigned int col_count, Cell* console_grid, Coordinate* apple_coord) {
+    unsigned int index;
+    *apple_coord = Calculate_Random_Coordinate(row_count, col_count);
+    index = Calculate_Index(col_count, apple_coord->row, apple_coord->col);
+	console_grid[index].tile_type = APPLE;
 }
 
-void Place_Snake_Head(unsigned int rows, unsigned int columns, Cell* console_grid, UIntVector2* snake_head_coordinate) {
-    *snake_head_coordinate = Calculate_Random_Coordinate(rows, columns);
-    console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
+void Place_Snake_Start(unsigned int row_count, unsigned int col_count, Cell* console_grid, Coordinate* head_coord, Coordinate* tail_coord) {
+    unsigned int index;
+    Coordinate temp_coord;
+    temp_coord = Calculate_Random_Coordinate(row_count, col_count);
+    *head_coord = temp_coord;
+    *tail_coord = temp_coord;
+    index = Calculate_Index(col_count, temp_coord.row, temp_coord.col);
+    console_grid[index].tile_type = SNAKE;
 }
 
 void Exit_Cleanup(void) {
-    /* Show cursor and leave alternate screen */
-    fputs("\x1b[?25h\x1b[?1049l", stdout);
-
-	/* Clear screen */
-	fputs("\033[2J\033[H", stdout);
-    
+    fputs("\x1b[?25h\x1b[?1049l", stdout); /* Show cursor and leave alternate screen */
+	fputs("\033[2J\033[H", stdout);        /* Clear screen */
     fflush(stdout);
 }
+/* void Move_Snake_Tail(Direction tail_direction, unsigned int row_count, unsigned int col_count, Coord* tail_coord, TileType* console_grid) { */
 
-void Move_Snake_Head(Direction snake_direction, unsigned int rows, unsigned int columns, UIntVector2* snake_head_coordinate, Cell* console_grid) {
-    switch (snake_direction) {
-        case NORTH:
-            if (snake_head_coordinate->y > 1) {
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
-                snake_head_coordinate->y -= 1;
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
-            } else {
-                Exit_Cleanup();
-                exit(0);
-            }
-        break;
-        case SOUTH:
-            if (snake_head_coordinate->y < (rows - 1)) {
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
-                snake_head_coordinate->y += 1;
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
-            } else {
-                Exit_Cleanup();
-                exit(0);
-            }
-        break;
-        case EAST:
-            if (snake_head_coordinate->x < (columns - 1)) {
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
-                snake_head_coordinate->x += 1;
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
-            } else {
-                Exit_Cleanup();
-                exit(0);
-            }
-        break;
-        case WEST:
-            if (snake_head_coordinate->x > 1) {
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = EMPTY;
-                snake_head_coordinate->x -= 1;
-                console_grid[snake_head_coordinate->y * columns + snake_head_coordinate->x] = SNAKE;
-            } else {
-                Exit_Cleanup();
-                exit(0);
-            }
-        break;
+/* } */
+
+void Move_Snake_Head(Direction head_dir, unsigned int row_count, unsigned int col_count, Coordinate* head_coord, Cell* console_grid) {
+    int next_index, next_row, next_col;
+    switch (head_dir) {
+    case NORTH:
+        next_row = head_coord->row - 1;
+        next_col = head_coord->col;
+    break;
+    case SOUTH:
+        next_row = head_coord->row + 1;
+        next_col = head_coord->col;
+    break;
+    case EAST: 
+        next_row = head_coord->row;
+        next_col = head_coord->col + 1;
+    break;
+    case WEST: 
+        next_row = head_coord->row;
+        next_col = head_coord->col - 1;
+    break;
     }
+    if (Detect_Border(row_count, col_count, next_row, next_col)) {
+        Exit_Cleanup();
+        exit(0);
+    }
+    next_index = Calculate_Index(col_count, next_row, next_col);
+    head_coord->row = next_row;
+    head_coord->col = next_col;
+    console_grid[next_index].tile_type = SNAKE;
 }
 
-/* Renders the console_grid to frame_buffer (not NULL-terminated). Returns the number of bytes written. */
-size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns, Cell* console_grid) {
-    unsigned int r, c;
-
-    /* Prepend home escape so each frame starts at row 1 column 1 */
-    char* home = "\x1b[H";
+size_t Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col_count, Cell* console_grid) {
+    unsigned int row, col;
+    char* home = "\x1b[H"; /* Prepend home escape so each frame starts at origin (row 0, col 0) */
     size_t offset = 0;
     size_t home_length = strlen(home);
     memcpy(frame_buffer + offset, home, home_length);
     offset += home_length;
-
-    /* Insert frame information */
-    for (r = 0; r < rows; r++) {
-        for (c = 0; c < columns; c++) {
-            char* pixel;
-            size_t pixel_length;
-			switch (console_grid[r * columns + c]) {
-				case BLOCK:
-                    /* "\x1b[37m" = Light Grey */
-                    pixel = "\x1b[37m\xE2\x96\x88\x1b[0m";
-                    pixel_length = strlen(pixel);
+    for (row = 0; row < row_count; row++) {
+        for (col = 0; col < col_count; col++) {
+            char* tile;
+            size_t tile_length;
+            unsigned int index;
+            index = Calculate_Index(col_count, row, col);
+			switch (console_grid[index].tile_type) {
+				case BORDER:
+                    tile = "\x1b[37m\xE2\x96\x88\x1b[0m"; /* Light grey full-block */
+                    tile_length = strlen(tile);
 				break;
 				case EMPTY:
-					pixel = " ";
-                    pixel_length = strlen(pixel);
+					tile = " ";
+                    tile_length = strlen(tile);
 				break;
 				case SNAKE:
-                    /* "\x1b[32m" = Green */
-                    pixel = "\x1b[32m\xE2\x96\x88\x1b[0m";
-                    pixel_length = strlen(pixel);
+                    tile = "\x1b[32m\xE2\x96\x88\x1b[0m"; /* Green full-block */
+                    tile_length = strlen(tile);
 				break;
 				case APPLE:
-                    /* "\x1b[31m" = Red */
-                    pixel = "\x1b[31m\xE2\x96\x88\x1b[0m";
-                    pixel_length = strlen(pixel);
+                    tile = "\x1b[31m\xE2\x96\x88\x1b[0m"; /* Red full-block */
+                    tile_length = strlen(tile);
 				break;
 			}
-            memcpy(frame_buffer + offset, pixel, pixel_length);
-            offset += pixel_length;
+            memcpy(frame_buffer + offset, tile, tile_length);
+            offset += tile_length;
 		}
-        if (r + 1u < rows) {
+        if (row + 1u < row_count) { /* Append new line except on last row */
             frame_buffer[offset++] = '\n';
         }
     }
@@ -334,23 +332,18 @@ size_t Render_Frame(char* frame_buffer, unsigned int rows, unsigned int columns,
 }
 
 int main() {
-
-    /* Declarations */
 	GameState game_state;
 	ConsoleState console_state;
     unsigned int interrupt;
     Cell* console_grid;
     char* frame_buffer;
     size_t frame_buffer_length;
-    unsigned int arrow_key_pressed;
+    unsigned int arrow_key;
 
-    /* Set seed */
-    srand(time(NULL));
+    srand(time(NULL)); /* Set seed */
 
-	/* Get initial console dimensions */
-	Set_Console_Dimensions(&console_state.rows, &console_state.columns);
-
-	/* Console enablement functions */
+	/* Console setup */
+	Set_Console_Dimensions(&console_state.row_count, &console_state.col_count);
 #ifdef _WIN32
 	Enable_UTF8_Console();
 	Enable_Virtual_Terminal_Processing();
@@ -358,52 +351,51 @@ int main() {
     Enable_Raw_Mode();
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK); /* Set stdin to non-blocking */
 #endif
-    /* Enter alternate screen and hide cursor */
-    fputs("\x1b[?1049h\x1b[?25l", stdout);
+    fputs("\x1b[?1049h\x1b[?25l", stdout); /* Enter alternate screen and hide cursor */
 
-    /* Setup console grid */
-    console_grid = Allocate_Console_Grid(console_state.rows, console_state.columns);
-    Initialize_Console_Grid(console_state.rows, console_state.columns, console_grid);
-    Update_Console_Border(console_state.rows, console_state.columns, console_grid);
-    Place_Apple(console_state.rows, console_state.columns, console_grid, &game_state.apple_coordinate);
-    Place_Snake_Head(console_state.rows, console_state.columns, console_grid, &game_state.snake_head_coordinate);
+    /* Grid Setup */
+    console_grid = Allocate_Console_Grid(console_state.row_count, console_state.col_count);
+    Initialize_Console_Grid(console_state.row_count, console_state.col_count, console_grid);
+    Place_Apple(console_state.row_count, console_state.col_count, console_grid, &game_state.apple_coord);
+    Place_Snake_Start(console_state.row_count, console_state.col_count, console_grid, &game_state.head_coord, &game_state.tail_coord);
     
-    /* Setup frame buffer */
-    frame_buffer = Allocate_Frame_Buffer(console_state.rows, console_state.columns);
+    /* Frame buffer setup */
+    frame_buffer = Allocate_Frame_Buffer(console_state.row_count, console_state.col_count);
 
     /* Game loop */
     interrupt = 0; /*TODO: implement SIGTERM handler*/
     while (!interrupt) {
 
         /* Register arrow key inputs */
-        arrow_key_pressed = Get_Arrow_Key_Press();
-        if (arrow_key_pressed != KEY_NONE) {
+        arrow_key = Get_Arrow_Key_Press();
+        if (arrow_key != KEY_NONE) {
 
-            /* Update first key pressed indicator */
-            if (game_state.first_key_pressed == 0) {
-                game_state.first_key_pressed = 1;
+            /* Game initializes on first arrow key pressed */
+            if (!game_state.is_game_init) {
+                game_state.is_game_init = 1;
             }
 
-            switch (arrow_key_pressed) {
+            switch (arrow_key) {
             case KEY_UP:
-                game_state.snake_direction = NORTH;
+                game_state.head_dir = NORTH;
 			break;
             case KEY_DOWN:
-                game_state.snake_direction = SOUTH;
+                game_state.head_dir = SOUTH;
 			break;
             case KEY_RIGHT:
-                game_state.snake_direction = EAST;
+                game_state.head_dir = EAST;
 			break;
             case KEY_LEFT:
-                game_state.snake_direction = WEST;
+                game_state.head_dir = WEST;
 			break;
 			}
         }
-        if (game_state.first_key_pressed == 1) {
-            Move_Snake_Head(game_state.snake_direction, console_state.rows, console_state.columns, &game_state.snake_head_coordinate, console_grid);
+        if (game_state.is_game_init) {
+            Move_Snake_Head(game_state.head_dir, console_state.row_count, console_state.col_count, &game_state.head_coord, console_grid);
+            /* Move_Snake_Tail(); */
         }
         
-        frame_buffer_length = Render_Frame(frame_buffer, console_state.rows, console_state.columns, console_grid);
+        frame_buffer_length = Render_Frame(frame_buffer, console_state.row_count, console_state.col_count, console_grid);
         fwrite(frame_buffer, 1, frame_buffer_length, stdout);
         fflush(stdout);
         Sleep_Milliseconds(120); /* 8 FPS */
