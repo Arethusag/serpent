@@ -92,8 +92,8 @@ void Enable_Raw_Mode(void) {
 
 void Flush_Input(void) {
 #ifdef _WIN32
-    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
-    FlushConsoleInputBuffer(hIn);
+    HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
+    FlushConsoleInputBuffer(handle_in);
 #else
     tcflush(STDIN_FILENO, TCIFLUSH);
 #endif
