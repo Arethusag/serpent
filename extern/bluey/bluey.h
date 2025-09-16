@@ -1,9 +1,10 @@
 #ifndef BLUEY_H
 #define BLUEY_H
 
-#define BLUEY_TRUE   1
-#define BLUEY_FALSE  0
-#define BLUE_ERROR  -1
+#define BLUEY_SUCCESS      1
+#define BLUEY_NO_SIGNAL    0
+#define BLUEY_ERROR       -1
+#define BLUEY_UNREACHABLE -2
 
 #define KEY_NONE  0u
 #define KEY_UP    1001u

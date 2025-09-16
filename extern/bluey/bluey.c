@@ -5,7 +5,6 @@
 #include <time.h>
 #ifdef _WIN32
 #include <windows.h>
-#include <conio.h>
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -35,68 +34,129 @@ struct Bluey {
 };
 
 #ifdef _WIN32
-void Get_Output_Handle(HANDLE* out_handle) {
-    HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    *out_handle = handle;
+int Get_Output_Handle(HANDLE* out_handle) {
+    HANDLE handle; 
+    DWORD  error_code;
+    handle = GetStdHandle(STD_OUTPUT_HANDLE);
     if (handle == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "GetStdHandle(STD_OUTPUT_HANDLE) failed: %lu\n", GetLastError());
+        error_code = GetLastError();
+        fprintf(stderr, "GetStdHandle(STD_OUTPUT_HANDLE) failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else if (handle == NULL) {
+        return BLUEY_ERROR;
+    } else {
+        *out_handle = handle;
+        return BLUEY_SUCCESS;
     }
+    return BLUEY_UNREACHABLE;
 }
 
-void Get_Input_Handle(HANDLE* in_handle) {
-    HANDLE handle = GetStdHandle(STD_INPUT_HANDLE);
+int Get_Input_Handle(HANDLE* in_handle) {
+    HANDLE handle; 
+    DWORD  error_code;
+    handle = GetStdHandle(STD_INPUT_HANDLE);
     *in_handle = handle;
     if (handle == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "GetStdHandle(STD_INPUT_HANDLE) failed: %lu\n", GetLastError());
+        error_code = GetLastError();
+        fprintf(stderr, "GetStdHandle(STD_INPUT_HANDLE) failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else if (handle == NULL) {
+        return BLUEY_ERROR;
+    } else {
+        *out_handle = handle;
+        return BLUEY_SUCCESS;
     }
+    return BLUEY_UNREACHABLE;
 }
 
-void Get_Console_Mode(HANDLE* handle, DWORD* mode) {
-    if (!GetConsoleMode(*handle, mode)) {
-        fprintf(stderr, "GetConsoleMode failed: %lu\n", GetLastError());
-    }
+int Get_Console_Mode(HANDLE handle, DWORD* con_mode) {
+    BOOL  mode_ok;
+    DWORD mode;
+    DWORD error_code;
+    mode_ok = GetConsoleMode(handle, &mode);
+    if (!mode_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "GetConsoleMode failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else {
+        *con_mode = mode;
+        return BLUEY_SUCCESS;
+    } 
+    return BLUEY_UNREACHABLE;
 }
 
-void Get_Console_Screen_Buffer_Information(HANDLE* handle, CONSOLE_SCREEN_BUFFER_INFO* con_buf_info) {
-    if (GetConsoleScreenBufferInfo(bluey->out_handle, con_buf_info) == 0) {
-        fprintf(stderr, "GetConsoleScreenBufferInfo failed: %lu\n", GetLastError());
+int Get_Console_Screen_Buffer_Information(HANDLE handle, CONSOLE_SCREEN_BUFFER_INFO* con_buf_info) {
+    BOOL                       con_buf_ok;
+    CONSOLE_SCREEN_BUFFER_INFO buf_info;
+    DWORD                      error_code;
+    con_buf_ok = GetConsoleScreenBufferInfo(handle, &buf_info);
+    if (!con_buf_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "GetConsoleScreenBufferInfo failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else {
+        *con_buf_info = buf_info;
+        return BLUEY_SUCCESS;
     }
+    return BLUEY_UNREACHABLE;
 }
 
-void Set_Console_Mode(HANDLE* handle, DWORD* mode) {
-    if (!SetConsoleMode(*handle, *mode)) {
-        fprintf(stderr, "SetConsoleMode failed: %lu\n", GetLastError());
+void Set_Console_Mode(HANDLE handle, DWORD* con_mode) {
+    BOOL  mode_ok;
+    DWORD mode;
+    DWORD error_code;
+    mode_ok = SetConsoleMode(handle, &mode);
+    if (!mode_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "SetConsoleMode failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else {
+        *con_mode = mode;
+        return BLUEY_SUCCESS;
     }
+    return BLUEY_UNREACHABLE;
 }
 
-void Enable_UTF8_Console(void) {
-    if (!SetConsoleOutputCP(CP_UTF8)) {
-        fprintf(stderr, "SetConsoleOutputCP(CP_UTF8) failed: %lu\n", GetLastError());
+int Enable_UTF8_Console(void) {
+    BOOL  code_page_ok;
+    DWORD error_code;
+    code_page_ok = SetConsoleOutputCP(CP_UTF8)
+    if (!code_page_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "SetConsoleOutputCP(CP_UTF8) failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else {
+        return BLUEY_SUCCESS;
     }
+    return BLUEY_UNREACHABLE;
 }
 
-void Enable_Virtual_Terminal_Processing(HANDLE* handle, DWORD* mode) {
+int Enable_Virtual_Terminal_Processing(HANDLE handle, DWORD* mode) {
     *mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    Set_Console_Mode(handle, mode);
+    return Set_Console_Mode(handle, mode);
 }
 
-void Enable_Virtual_Terminal_Input(HANDLE* handle, DWORD* mode) {
+int Enable_Virtual_Terminal_Input(HANDLE handle, DWORD* mode) {
     *mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
-    Set_Console_Mode(handle, mode);
+    return Set_Console_Mode(handle, mode);
 }
 
 #else
 void Get_Termios(struct termios* termios) {
-    if (tcgetattr(STDIN_FILENO, termios) == -1) {
-        int err = errno;
-        fprintf(stderr, "tcgetattr failed: %d\n", err);
-    }
+    struct termios term;
+    int            return_val;
+    char*          error_str;
+    return_val = tcgetattr(STDIN_FILENO, &term);
+    if (return_val == -1) {
+        error_str = strerror(errno);
+        fprintf(stderr, "tcgetattr failed: %s %d\n", error_str, errno);
+        return BLUEY_ERROR;
+    } else if (return_val == 0
 }
 
 void Set_Termios(const struct termios* termios) {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, termios) == -1) {
-        int err = errno;
-        fprintf(stderr, "tcsetattr failed: %d\n", err);
+        fprintf(stderr, "tcsetattr failed: %s %d\n", strerror(errno), errno);
     }
 }
 
@@ -109,15 +169,13 @@ void Get_Standard_Input_File_Descriptor_Flags(int* file_desc_flags) {
     int flags = fcntl(STDIN_FILENO, F_GETFL);
     file_desc_flags = flags;
     if (flags == -1) {
-        int err = errno;
-        fprintf(stderr, "fcntl failed %d\n", err);
+        fprintf(stderr, "fcntl failed %s %d\n", strerror(errno), errno);
     }
 }
 
 void Set_Standard_Input_File_Descriptor_Flags(int* file_desc_flags) {
     if (fcntl(STDIN_FILENO, F_SETFL, file_desc_flags) == -1) {
-        int err = errno;
-        fprintf(stderr, "fcntl failed %d\n", err);
+        fprintf(stderr, "fcntl failed %s %d\n", strerror(errno), errno);
     }
 }
 
@@ -128,8 +186,7 @@ void Enable_Standard_Input_Non_Blocking_Mode(int* file_desc_flags) {
 
 void Get_Window_Size(struct winsize* win_size) {
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, win_size) == -1) {
-        int err = errno;
-        fprintf(stderr, "ioctl failed: %d\n", err);
+        fprintf(stderr, "ioctl failed: %s %d\n", strerror(errno), errno);
     }
 }
 #endif
@@ -169,12 +226,12 @@ int Bluey_Init(struct Bluey* bluey) {
     Enable_Raw_Mode(bluey->deriv_termios);
 #endif
     Get_Console_Dimensions(bluey);
-    return BLUEY_TRUE;
+    return BLUEY_SUCCESS;
 }
 
 int Bluey_Deinit(struct Bluey* bluey) {
     if (!bluey) {
-        return BLUEY_ERR;
+        return BLUEY_ERROR;
     }
 #ifdef _WIN32
     Set_Console_Mode(bluey->out_handle, bluey->orig_out_mode);
@@ -183,7 +240,7 @@ int Bluey_Deinit(struct Bluey* bluey) {
     Set_Termios(bluey->orig_termios);
     Set_Standard_Input_File_Descriptor_Flags(bluey->orig_in_file_desc_flags);
 #endif
-    return BLUEY_OK;
+    return BLUEY_SUCCESS;
 }
 
 void Bluey_Enter_Alternate_Screen(void) {
@@ -207,52 +264,92 @@ void Bluey_Show_Cursor(void) {
 }
 
 int Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_char) {
-    if (!bluey || !out_char) return BLUEY_ERR;
+    unsigned char read_buf;
 #ifdef _WIN32
+    int   read_ok;
+    DWORD error_code;
     DWORD wait_return_val;
-    DWORD read_return_val;
     DWORD num_bytes_read;
-    DWORD num_bytes_to_read = 1;
-    DWORD wait_millis = 0 
-    wait_return_val = WaitForSingleObject(bluey->in_handle, wait_millis);
-    if (wait_return_val == WAIT_FAILED) {
-        fprintf(stderr, "WaitForSingleObject failed: %lu\n", (GetLastError()));
-        return BLUEY_ERR;
-    } else if (wait_return_val == WAIT_OBJECT_0) {
-        continue;
-    } else {
-        return BLUEY_FALSE;
+    DWORD num_bytes_to_read;
+    DWORD wait_millis;
+    num_bytes_to_read = 1;
+    wait_millis       = 0; 
+    wait_return_val   = WaitForSingleObject(bluey->in_handle, wait_millis);
+    switch (wait_return_val) {
+        case WAIT_FAILED:
+            error_code = GetLastError();
+            fprintf(stderr, "WaitForSingleObject failed: %lu\n", error_code);
+            return BLUEY_ERROR;
+        case WAIT_TIMEOUT:
+            return BLUEY_NO_SIGNAL;
+        case WAIT_ABANDONED:
+            return BLUEY_NO_SIGNAL;
+        case WAIT_OBJECT_0:
+            break;
+        default:
+            return BLUEY_UNREACHABLE;
     }
-    if (!ReadFile(bluey->in_handle, out_char, num_bytes_to_read, &num_bytes_read)) {
-        fprintf(stderr, "ReadFile failed: %lu\n", (GetLastError()));
-        return BLUEY_ERR;
-    } else {
-        return BLUEY_OK;
+    read_ok = ReadFile(bluey->in_handle, &read_buf, num_bytes_to_read, &num_bytes_read); 
+    if (!read_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "ReadFile failed: %lu\n", error_code);
+        return BLUEY_ERROR;
     }
-  }
+    switch (num_bytes_read) {       
+        case 1:
+            *out_char = read_buf;
+            return BLUEY_SUCCESS;
+        case 0:
+            return BLUEY_NO_SIGNAL;
+        default:
+            return BLUEY_UNREACHABLE;
+    }
 #else
-  unsigned char buf;
-  ssize_t n_read = read(STDIN_FILENO, &buf, 1);
-  if (n_read == 1) {
-    *out_char = buf;
-    return 1;
-  }
-  if (n_read == 0) {
-    return 0;
-  }
-  if (errno == EAGAIN || errno == EWOULDBLOCK) {
-    return 0;
-  }
-  return -1;
+    ssize_t num_bytes_read;
+    size_t  num_bytes_to_read;
+    num_bytes_to_read = 1;
+    num_bytes_read    = read(STDIN_FILENO, &read_buf, num_bytes_to_read);
+    switch(num_bytes_read) {
+        case 1:
+            *out_char = read_buf;
+            return BLUEY_SUCCESS;
+        case 0:
+            return BLUEY_NO_SIGNAL;
+        case -1:
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return BLUEY_NO_SIGNAL;
+            }
+            fprintf(stderr, "read failed: %s %d\n", strerror(errno), errno);
+            return BLUEY_ERROR;
+        default:
+            return BLUEY_UNREACHABLE;
+    } 
 #endif
+    return BLUEY_UNREACHABLE;
 }
 
-void Bluey_Flush_Input(struct Bluey* bluey) {
+int Bluey_Flush_Input(struct Bluey* bluey) {
 #ifdef _WIN32
-    FlushConsoleInputBuffer(bluey->in_handle);
+    BOOL  flush_ok;
+    DWORD error_code;
+    flush_ok = FlushConsoleInputBuffer(bluey->in_handle);
+    if (!flush_ok) {
+        error_code = GetLastError();
+        fprintf(stderr, "FlushConsoleInputBuffer failed: %lu\n", error_code);
+        return BLUEY_ERROR;
+    } else {
+        return BLUEY_SUCCESS;
+    }
 #else
-    tcflush(STDIN_FILENO, TCIFLUSH);
+    int flush_return_val;
+    flush_return_val = tcflush(STDIN_FILENO, TCIFLUSH);
+    if (flush_return_val == 0) {
+        return BLUEY_SUCCESS;
+    } else if (flush_return_val = -1)
+        fprintf(stderr, "tcflush failed: %s %d\n", strerror(errno), errno);
+        return BLUEY_ERROR;
 #endif
+    return BLUEY_UNREACHABLE;
 }
 
 char* Bluey_Allocate_Frame_Buffer(unsigned int row_count, unsigned int col_count) {
@@ -268,14 +365,14 @@ size_t Bluey_Write_Frame(struct Bluey* bluey, char* frame_buffer, size_t len) {
 
 void Bluey_Sleep_Milliseconds(unsigned int millis) {
 #ifdef _WIN32
-    Sleep(milliseconds);
+    Sleep(millis);
 #elif _POSIX_C_SOURCE >= 199309L
-    struct timespec ts;
-    ts.tv_sec = milliseconds / 1000;
-    ts.tv_nsec = (milliseconds % 1000) * 1000000L;
-    nanosleep(&ts, NULL);
+    struct timespec time;
+    time.tv_sec = millis / 1000;
+    time.tv_nsec = (millis % 1000) * 1000000L;
+    nanosleep(&time, NULL);
 #else
-    usleep(milliseconds * 1000);
+    usleep(millis * 1000);
 #endif
 
 }
