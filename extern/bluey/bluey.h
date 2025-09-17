@@ -6,12 +6,6 @@
 #define BLUEY_ERROR       -1
 #define BLUEY_UNREACHABLE -2
 
-#define KEY_NONE  0u
-#define KEY_UP    1001u
-#define KEY_DOWN  1002u
-#define KEY_LEFT  1003u
-#define KEY_RIGHT 1004u
-
 struct Bluey {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO  buff_info;
@@ -33,16 +27,14 @@ struct Bluey {
 };
 
 #ifdef _WIN32
-int           Bluey_Init(struct Bluey* bluey);                                          /* Initialize console; returns handle */
-int           Bluey_Deinit(struct Bluey* bluey);                                        /* Restore terminal state. */
-int           Bluey_Enter_Screen(void);                                                 /* Enter alternate screen*/
-int           Bluey_Leave_Screen(void);                                                 /* Leave alternate screen*/
-int           Bluey_Hide_Cursor(void);                                                  /* Hide cursor */ 
-int           Bluey_Show_Cursor(void);                                                  /* Show cursor */
-unsigned int  Bluey_Get_Arrow_Key(struct Bluey* bluey);                                 /* None-blocking arrow key polling */
-void          Bluey_Flush_Input(struct Bluey* bluey);                                   /* Flush unread input. */
-char*         Bluey_Alloc_Frame_Buffer(unsigned int row_count, unsigned int col_count); /* Frame buffer allocator. */
-void          Bluey_Free_Frame_Buffer(char* buf);                                       /* Free frame buffer */
-size_t        Bluey_Write_Frame(struct Bluey* bluey, char* frame_buffer, size_t len);   /* Write a rendered frame to the terminal */
-void          Bluey_Sleep_Milliseconds(unsigned int millis);                                  /* Portable sleep in milliseconds */
+int    Bluey_Init(struct Bluey* bluey);                                                  /* Initialize terminal state. */
+int    Bluey_Deinit(struct Bluey* bluey);                                                /* Restore terminal defaults. */
+void   Bluey_Enter_Alternate_Screen(void);
+void   Bluey_Leave_Alternate_Screen(void);
+void   Bluey_Hide_Cursor(void);
+void   Bluey_Show_Cursor(void);
+int    Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_char); /* Non-blocking function that retrieves the next character in the standard input buffer. */
+int    Bluey_Flush_Standard_Input(struct Bluey* bluey);                                   /* Flush unread input. */
+size_t Bluey_Write_Frame(char* frame_buf, size_t buf_siz, size_t buf_len);                /* Write a rendered frame to the terminal */
+int    Bluey_Sleep_Milliseconds(unsigned int millis);                                     /* Portable sleep in milliseconds */
 #endif
