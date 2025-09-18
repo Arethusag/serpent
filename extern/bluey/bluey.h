@@ -27,14 +27,14 @@ struct Bluey {
 };
 
 #ifdef _WIN32
-int    Bluey_Init(struct Bluey* bluey);                                                  /* Initialize terminal state. */
-int    Bluey_Deinit(struct Bluey* bluey);                                                /* Restore terminal defaults. */
+int    Bluey_Init(struct Bluey* bluey);                                                
+int    Bluey_Deinit(struct Bluey* bluey);                                               
 void   Bluey_Enter_Alternate_Screen(void);
 void   Bluey_Leave_Alternate_Screen(void);
 void   Bluey_Hide_Cursor(void);
 void   Bluey_Show_Cursor(void);
-int    Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_char); /* Non-blocking function that retrieves the next character in the standard input buffer. */
-int    Bluey_Flush_Standard_Input(struct Bluey* bluey);                                   /* Flush unread input. */
-size_t Bluey_Write_Frame(char* frame_buf, size_t buf_siz, size_t buf_len);                /* Write a rendered frame to the terminal */
-int    Bluey_Sleep_Milliseconds(unsigned int millis);                                     /* Portable sleep in milliseconds */
+int    Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_char);
+int    Bluey_Flush_Standard_Input(struct Bluey* bluey);                                  
+size_t Bluey_Write_Frame(char* frame_buf, size_t buf_siz, size_t buf_len);               
+int    Bluey_Sleep_Milliseconds(unsigned int millis);                                    
 #endif

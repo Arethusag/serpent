@@ -59,73 +59,6 @@ typedef struct {
     Direction travel_dir;
 }Cell;
 
-/* Platform specific terminal handling */
-#ifdef _WIN32
-void Enable_UTF8_Console(void) {
-	SetConsoleOutputCP(CP_UTF8);
-}
-
-void Enable_Virtual_Terminal_Processing(void) {
-	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
-	DWORD mode;
-	GetConsoleMode(handle_out, &mode);
-	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    SetConsoleMode(handle_out, mode);
-}
-
-#else
-struct termios orig_termios;
-
-void Disable_Raw_Mode(void) {
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-}
-
-void Enable_Raw_Mode(void) {
-    struct termios raw_termios; 
-    tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(Disable_Raw_Mode); /* Register Disable_Raw_Mode() function to run on exit */
-    raw_termios = orig_termios;
-    raw_termios.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw_termios);
-}
-#endif
-
-void Flush_Input(void) {
-#ifdef _WIN32
-    HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
-    FlushConsoleInputBuffer(handle_in);
-#else
-    tcflush(STDIN_FILENO, TCIFLUSH);
-#endif
-}
-
-void Set_Console_Dimensions(unsigned int *row_count, unsigned int *col_count) {
-#ifdef _WIN32
-	CONSOLE_SCREEN_BUFFER_INFO console_screen_buffer_info;
-	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &console_screen_buffer_info);
-	*col_count = (unsigned int)(console_screen_buffer_info.srWindow.Right - console_screen_buffer_info.srWindow.Left + 1);
-	*row_count = (unsigned int)(console_screen_buffer_info.srWindow.Bottom - console_screen_buffer_info.srWindow.Top + 1);
-#else
-	struct winsize size;
-	ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-	*row_count = (unsigned int)size.ws_row;
-	*col_count = (unsigned int)size.ws_col;
-#endif
-}
-
-void Sleep_Milliseconds(unsigned int milliseconds) {
-#ifdef _WIN32
-    Sleep(milliseconds);
-#elif _POSIX_C_SOURCE >= 199309L
-    struct timespec ts;
-    ts.tv_sec = milliseconds / 1000;
-    ts.tv_nsec = (milliseconds % 1000) * 1000000L;
-    nanosleep(&ts, NULL);
-#else
-    usleep(milliseconds * 1000);
-#endif
-}
-
 unsigned int Get_Arrow_Key_Press(void) {
 #ifdef _WIN32
     int input_char;
@@ -277,8 +210,8 @@ void Place_Snake_Start(unsigned int row_count, unsigned int col_count, Cell* con
 }
 
 void Exit_Cleanup(unsigned int score) {
-    fputs("\x1b[?25h\x1b[?1049l", stdout); /* Show cursor and leave alternate screen */
-	fputs("\033[2J\033[H", stdout);        /* Clear screen */
+    fputs("\x1b[?25h\x1b[?1049l", stdout);
+	fputs("\033[2J\033[H", stdout);       
     printf("Final Score: %d\n", score);
     fflush(stdout);
 }
