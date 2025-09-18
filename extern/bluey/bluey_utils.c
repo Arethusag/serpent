@@ -1,4 +1,13 @@
-int Report_Last_Error(char* api_name) {
+#include "bluey_internal.h"
+#include "bluey.h"          
+
+#include <stdio.h>  
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <time.h>
+
+int Report_Last_Error(char* func_name) {
     int return_val;
 #ifdef _WIN32
     DWORD last_error_code;
@@ -12,17 +21,17 @@ int Report_Last_Error(char* api_name) {
     message_string     = NULL;
     message_result_ok  = FormatMessageA(format_flags, NULL, last_error_code, format_language, &message_string, 0);
     if (message_result_ok && message_string) {
-        return_val = fprintf(stderr, "%s failed: %s (%lu)\n", api_name, message_string, last_error_code);
-        LocalFree(msg_buf);
+        return_val = fprintf(stderr, "%s failed: %s (%lu)\n", func_name, message_string, last_error_code);
+        LocalFree(message_string);
     } else {
-        return_val = fprintf(stderr, "%s failed: (%lu)\n", api_name, last_error_code);
+        return_val = fprintf(stderr, "%s failed: (%lu)\n", func_name, last_error_code);
     }
 #else
     int   error_code;
     char* error_string;
     error_code   = errno;
     error_string = strerror(errno); 
-    return_val   = fprintf(stderr, "%s failed: %s (%d)\n",api_name, error_string, error_code);
+    return_val   = fprintf(stderr, "%s failed: %s (%d)\n", func_name, error_string, error_code);
 #endif
     if (return_val < 0) {
         return BLUEY_ERROR;
@@ -235,7 +244,6 @@ int Write_Standard_Output(char* output_str) {
     }
     return BLUEY_UNREACHABLE; 
     }
-}
 
 int Flush_Standard_Output(void) {
     int   return_val;

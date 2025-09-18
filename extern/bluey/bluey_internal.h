@@ -1,4 +1,42 @@
-int  Report_Last_Error(char* api_name);         
+#ifndef BLUEY_INTERNAL_H
+#define BLUEY_INTERNAL_H
+
+#include "bluey.h"
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <termios.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <fcntl.h>
+#endif
+
+struct Bluey {
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO  con_buf_info;
+    HANDLE                      out_handle;
+    HANDLE                      in_handle;
+    DWORD                       orig_in_mode;
+    DWORD                       curr_in_mode;
+    DWORD                       orig_out_mode;
+    DWORD                       curr_out_mode;
+#else
+    struct termios  orig_termios;
+    struct termios  deriv_termios;
+    struct winsize  win_size;
+    int             orig_in_file_desc_flags;
+    int             deriv_in_file_desc_flags;
+#endif
+    unsigned int  row_count;
+    unsigned int  col_count;
+};
+
+int  Report_Last_Error(char* func_name);         
 void Get_Console_Dimensions(struct Bluey* bluey);
 int  Write_Standard_Output(char* output_str);
 int  Flush_Standard_Output(void);
