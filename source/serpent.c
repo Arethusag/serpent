@@ -259,19 +259,19 @@ size_t Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col
 			switch (console_grid[index].tile_type) {
 				case BORDER:
                     tile = "\x1b[37m\xE2\x96\x88\x1b[0m"; /* Light grey full-block */
-                    tile_length = strlen(tile);
+                    tile_length = 12; /* Colour: 5 bytes, Full block: 3 bytes, Reset: 4 bytes */
 				break;
 				case EMPTY:
 					tile = " ";
-                    tile_length = strlen(tile);
+                    tile_length = 1;
 				break;
 				case SNAKE:
                     tile = "\x1b[32m\xE2\x96\x88\x1b[0m"; /* Green full-block */
-                    tile_length = strlen(tile);
+                    tile_length = 12;
 				break;
 				case APPLE:
                     tile = "\x1b[31m\xE2\x96\x88\x1b[0m"; /* Red full-block */
-                    tile_length = strlen(tile);
+                    tile_length = 12;
 				break;
 			}
             memcpy(frame_buffer + offset, tile, tile_length);
