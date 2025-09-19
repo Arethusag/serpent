@@ -4,45 +4,51 @@
 #include <time.h>
 
 
-int Bluey_Init(struct Bluey* bluey) {
+int Bluey_Init(struct Bluey** out_bluey) {
+    struct Bluey* bluey = (struct Bluey*)malloc(sizeof(*bluey));
 #ifdef _WIN32
-    Get_Output_Handle(bluey->out_handle);
-    Get_Input_Handle(bluey->in_handle);
-    Get_Console_Mode(bluey->in_handle, bluey->orig_in_mode);
-    Get_Console_Mode(bluey->out_handle, bluey->orig_out_mode);
+    if (Get_Output_Handle(&bluey->out_handle)                                           != BLUEY_SUCCESS) goto fail;
+    if (Get_Input_Handle(&bluey->in_handle)                                             != BLUEY_SUCCESS) goto fail;
+    if (Get_Console_Mode(bluey->in_handle, &bluey->orig_in_mode)                        != BLUEY_SUCCESS) goto fail;
+    if (Get_Console_Mode(bluey->out_handle, &bluey->orig_out_mode)                      != BLUEY_SUCCESS) goto fail;
     bluey->curr_in_mode = bluey->orig_in_mode;
     bluey->curr_out_mode = bluey->orig_out_mode;
-    Enable_Virtual_Terminal_Processing(bluey->out_handle, bluey->curr_out_mode);
-    Enable_Virtual_Terminal_Input(bluey->in_handle, bluey->curr_out_mode);
-    Get_Console_Screen_Buffer_Information(bluey->out_handle, bluey->con_buf_info);
-    Enable_UTF8_Console();
+    if (Enable_Virtual_Terminal_Processing(bluey->out_handle, &bluey->curr_out_mode)    != BLUEY_SUCCESS) goto fail;
+    if (Enable_Virtual_Terminal_Input(bluey->in_handle, &bluey->curr_out_mode)          != BLUEY_SUCCESS) goto fail;
+    if (Get_Console_Screen_Buffer_Information(bluey->out_handle, &bluey->con_buf_info)  != BLUEY_SUCCESS) goto fail;
+    if (Enable_UTF8_Console()                                                           != BLUEY_SUCCESS) goto fail;
 #else
-    Get_Termios(bluey->orig_termios);
+    if (Get_Termios(&bluey->orig_termios)                                               != BLUEY_SUCCESS) goto fail;
     bluey->deriv_termios = bluey->orig_termios;
-    Get_Standard_Input_File_Descriptor_Flags(bluey->orig_in_file_desc_flags);
+    if (Get_Standard_Input_File_Descriptor_Flags(&bluey->orig_in_file_desc_flags)       != BLUEY_SUCCESS) goto fail;
     bluey->deriv_in_file_desc_flags = bluey->orig_in_file_desc_flags;
-    Get_Window_Size(bluey->win_size);
-    Enable_Standard_Input_Non_Blocking_Mode(bluey->deriv_in_file_desc_flags);
-    Enable_Raw_Mode(bluey->deriv_termios);
+    if (Get_Window_Size(&bluey->win_size)                                               != BLUEY_SUCCESS) goto fail;
+    if (Enable_Standard_Input_Non_Blocking_Mode(&bluey->curr_in_file_desc_flags)        != BLUEY_SUCCESS) goto fail;
+    if (Enable_Raw_Mode(&bluey->curr_termios)                                           != BLUEY_SUCCESS) goto fail;
 #endif
     Get_Console_Dimensions(bluey);
+    *out_bluey = bluey;
     return BLUEY_SUCCESS;
+fail:
+    free(bluey);
+    return BLUEY_ERROR;
 }
 
 int Bluey_Deinit(struct Bluey* bluey) {
 #ifdef _WIN32
-    Set_Console_Mode(bluey->out_handle, bluey->orig_out_mode);
-    Set_Console_Mode(bluey->in_handle, bluey->orig_in_mode);
+    Set_Console_Mode(bluey->out_handle, &bluey->orig_out_mode);
+    Set_Console_Mode(bluey->in_handle, &bluey->orig_in_mode);
 #else
     Set_Termios(bluey->orig_termios);
     Set_Standard_Input_File_Descriptor_Flags(bluey->orig_in_file_desc_flags);
 #endif
+    free(bluey);
     return BLUEY_SUCCESS;
 }
 
 int Write_Standard_Output(char* output_str) {
     int return_val;
-    return_val = fputs(output, stdout);
+    return_val = fputs(output_str, stdout);
     if (return_val == EOF) {
         Report_Last_Error("fputs");
         return BLUEY_ERROR;
@@ -52,7 +58,7 @@ int Write_Standard_Output(char* output_str) {
     return BLUEY_UNREACHABLE; 
 }
 
-int BlueyFlush_Standard_Output(void) {
+int Bluey_Flush_Standard_Output(void) {
     int   return_val;
     char* error_str;
     return_val = fflush(stdout);
@@ -89,7 +95,6 @@ int Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_
     unsigned char read_buf;
 #ifdef _WIN32
     int   read_ok;
-    DWORD error_code;
     DWORD wait_return_val;
     DWORD num_bytes_read;
     DWORD num_bytes_to_read;
@@ -110,7 +115,7 @@ int Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_
         default:
             return BLUEY_UNREACHABLE;
     }
-    read_ok = ReadFile(bluey->in_handle, &read_buf, num_bytes_to_read, &num_bytes_read); 
+    read_ok = ReadFile(bluey->in_handle, &read_buf, num_bytes_to_read, &num_bytes_read, NULL); 
     if (!read_ok) {
         Report_Last_Error("ReadFile");
         return BLUEY_ERROR;
@@ -212,7 +217,7 @@ int Bluey_Sleep_Milliseconds(unsigned int millis) {
     return BLUEY_UNREACHABLE;
 }
 
-int Bluey_Get_Console_Dimensions(struct Bluey* bluey, unsigned int* row_count, unsigned int* col_count) {
+void Bluey_Get_Console_Dimensions(struct Bluey* bluey, unsigned int* row_count, unsigned int* col_count) {
     *row_count = bluey->row_count;
     *col_count = bluey->col_count;
 }

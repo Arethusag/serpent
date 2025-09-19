@@ -59,3 +59,5 @@ int Set_Standard_Input_File_Descriptor_Flags(int* file_desc_flags);
 int Enable_Standard_Input_Non_Blocking_Mode(int* file_desc_flags);
 int Get_Window_Size(struct winsize* win_size);
 #endif
+
+#endif

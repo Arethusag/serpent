@@ -9,7 +9,7 @@
 #define BLUEY_UNREACHABLE -2
 
 struct Bluey;
-int    Bluey_Init(struct Bluey** bluey);                                                
+int    Bluey_Init(struct Bluey** out_bluey);
 int    Bluey_Deinit(struct Bluey* bluey);                                               
 void   Bluey_Enter_Alternate_Screen(void);
 void   Bluey_Leave_Alternate_Screen(void);

@@ -1,13 +1,5 @@
 @echo off
 
-REM Compiler flags:
-REM - /nologo : Suppress version banner
-REM - /Zi     : Generate debug information
-REM - /Od     : Disable optimization (debug build)
-REM - /W4     : Maximum warning level
-REM - /Za     : Disable Microsoft extensions (ANSI compliance)
-REM - /MDd    : Use debug multithreaded DLL runtime
-REM - /Fe     : Output executable name
-REM - /Fd     : Debug information file
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul
 
-cl /nologo /TC /Zi /Od /W4 /MDd main.c /Fe:"build/main.exe" /Fo:"build/main.obj" /Fd:"build/main.pdb"
+cl /nologo /TC /Zi /Od /W4 /WX /Za /MDd /I"extern\bluey" "source\snake.c" "extern\bluey\bluey.c" "extern\bluey\bluey_utils.c" /Fe:"build\snake.exe" /Fd:"build\snake.pdb"
