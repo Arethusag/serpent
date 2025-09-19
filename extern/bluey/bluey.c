@@ -55,9 +55,10 @@ int Bluey_Flush_Standard_Output(void) {
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
+    return BLUEY_ERROR;
 }
 
-int Write_Standard_Output(char* output_str) {
+int Bluey_Write_Standard_Output(char* output_str) {
     int   return_val;
     return_val = fputs(output_str, stdout);
     if (return_val == EOF) {
@@ -66,7 +67,8 @@ int Write_Standard_Output(char* output_str) {
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
-    }
+    return BLUEY_ERROR;
+}
 
 void Bluey_Enter_Alternate_Screen(void) {
     Bluey_Write_Standard_Output("\x1b[?1049h");
@@ -142,6 +144,7 @@ int Bluey_Read_Standard_Input_Character(struct Bluey* bluey, unsigned char* out_
             return BLUEY_ERROR;
     } 
 #endif
+    return BLUEY_ERROR;
 }
 
 int Bluey_Flush_Standard_Input(struct Bluey* bluey) {
@@ -164,6 +167,7 @@ int Bluey_Flush_Standard_Input(struct Bluey* bluey) {
         return BLUEY_ERROR;
     }
 #endif
+    return BLUEY_ERROR;
 }
 
 size_t Bluey_Write_Frame(char* frame_buf, size_t buf_siz, size_t buf_len) {
@@ -177,6 +181,7 @@ size_t Bluey_Write_Frame(char* frame_buf, size_t buf_siz, size_t buf_len) {
     } else if (num_items_written == 0) {
         return BLUEY_NO_SIGNAL;
     }
+    return BLUEY_ERROR;
 }
 
 int Bluey_Sleep_Milliseconds(unsigned int millis) {
@@ -203,6 +208,7 @@ int Bluey_Sleep_Milliseconds(unsigned int millis) {
         return BLUEY_SUCCESS;    
     }
 #endif
+    return BLUEY_ERROR;
 }
 
 void Bluey_Get_Console_Dimensions(struct Bluey* bluey, unsigned int* row_count, unsigned int* col_count) {

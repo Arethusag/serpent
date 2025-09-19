@@ -150,6 +150,7 @@ int Get_Termios(struct termios* termios) {
         *termios = term;
         return BLUEY_SUCCESS;
     } 
+    return BLUEY_ERROR;
 }
 
 int Set_Termios(struct termios* termios) {
@@ -161,6 +162,7 @@ int Set_Termios(struct termios* termios) {
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
+    return BLUEY_ERROR;
 }
 
 int Enable_Raw_Mode(struct termios *termios) {
@@ -189,6 +191,7 @@ int Set_Standard_Input_File_Descriptor_Flags(int* file_desc_flags) {
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
+    return BLUEY_ERROR;
 }
 
 int Enable_Standard_Input_Non_Blocking_Mode(int* file_desc_flags) {
@@ -211,6 +214,7 @@ int Get_Window_Size(struct winsize* win_size) {
         *win_size = size;
         return BLUEY_SUCCESS;
     }
+    return BLUEY_ERROR;
 }
 #endif
 
@@ -233,4 +237,5 @@ int Write_Standard_Output(char* output_str) {
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
+    return BLUEY_ERROR;
     }
