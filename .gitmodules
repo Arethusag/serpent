@@ -1,3 +1,6 @@
 [submodule "extern/bluey"]
 	path = extern/bluey
 	url = git@github.com:Arethusag/bluey.git
+[submodule "extern/metrify"]
+	path = extern/metrify
+	url = git@github.com:Arethusag/metrify.git
