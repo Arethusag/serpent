@@ -37,9 +37,9 @@ int Report_Last_Error(char* func_name) {
         return BLUEY_ERROR;
     }
     if (fflush(stderr) == EOF) {
-        return BLUEY_ERROR
+        return BLUEY_ERROR;
     }
-    return BLUEY_SUCCESS
+    return BLUEY_SUCCESS;
 }
 
 #ifdef _WIN32
@@ -56,7 +56,6 @@ int Get_Output_Handle(HANDLE* out_handle) {
         *out_handle = handle;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Get_Input_Handle(HANDLE* in_handle) {
@@ -73,7 +72,6 @@ int Get_Input_Handle(HANDLE* in_handle) {
         *out_handle = handle;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Get_Console_Mode(HANDLE handle, DWORD* con_mode) {
@@ -88,7 +86,6 @@ int Get_Console_Mode(HANDLE handle, DWORD* con_mode) {
         *con_mode = mode;
         return BLUEY_SUCCESS;
     } 
-    return BLUEY_UNREACHABLE;
 }
 
 int Get_Console_Screen_Buffer_Information(HANDLE handle, CONSOLE_SCREEN_BUFFER_INFO* con_buf_info) {
@@ -103,7 +100,6 @@ int Get_Console_Screen_Buffer_Information(HANDLE handle, CONSOLE_SCREEN_BUFFER_I
         *con_buf_info = buf_info;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 void Set_Console_Mode(HANDLE handle, DWORD* con_mode) {
@@ -118,7 +114,6 @@ void Set_Console_Mode(HANDLE handle, DWORD* con_mode) {
         *con_mode = mode;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Enable_UTF8_Console(void) {
@@ -131,7 +126,6 @@ int Enable_UTF8_Console(void) {
     } else {
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Enable_Virtual_Terminal_Processing(HANDLE handle, DWORD* mode) {
@@ -156,21 +150,17 @@ int Get_Termios(struct termios* termios) {
         *termios = term;
         return BLUEY_SUCCESS;
     } 
-    return BLUEY_UNREACHABLE;
 }
 
-int Set_Termios(const struct termios* termios) {
+int Set_Termios(struct termios* termios) {
     int            return_val;
-    struct termios term;
     return_val = tcsetattr(STDIN_FILENO, TCSAFLUSH, termios);
     if (return_val == -1) {
         Report_Last_Error("tcsetattr");
         return BLUEY_ERROR;
     } else if (return_val == 0) {
-        *termios = term;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHALE;
 }
 
 int Enable_Raw_Mode(struct termios *termios) {
@@ -188,30 +178,32 @@ int Get_Standard_Input_File_Descriptor_Flags(int* file_desc_flags) {
         *file_desc_flags = flags;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Set_Standard_Input_File_Descriptor_Flags(int* file_desc_flags) {
     int   return_val;
-    return_val = fcntl(STDIN_FILENO, F_SETFL, file_desc_flags);
+    return_val = fcntl(STDIN_FILENO, F_SETFL, *file_desc_flags);
     if (return_val == -1) {
         Report_Last_Error("fntcl");
         return BLUEY_ERROR;
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 
 int Enable_Standard_Input_Non_Blocking_Mode(int* file_desc_flags) {
-    file_desc_flags |= O_NONBLOCK;
-    Set_Standard_Input_File_Descriptor_Flags(file_desc_flags);
+    *file_desc_flags |= O_NONBLOCK;
+    if (Set_Standard_Input_File_Descriptor_Flags(file_desc_flags) != BLUEY_SUCCESS) {
+        return BLUEY_ERROR;
+    } else {
+        return BLUEY_SUCCESS;
+    }
 }
 
 int Get_Window_Size(struct winsize* win_size) {
     int            return_val;
     struct winsize size;
-    return_val = ioctl(STDOUT_FILENO, TIOCGWINSZ, size);
+    return_val = ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
     if (return_val == -1) {
         Report_Last_Error("ioctl");
         return BLUEY_ERROR;
@@ -219,7 +211,6 @@ int Get_Window_Size(struct winsize* win_size) {
         *win_size = size;
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE;
 }
 #endif
 
@@ -228,34 +219,18 @@ void Get_Console_Dimensions(struct Bluey* bluey) {
 	bluey->col_count = (unsigned int)(bluey->con_buf_info.srWindow.Right - bluey->con_buf_info.srWindow.Left + 1);
 	bluey->row_count = (unsigned int)(bluey->con_buf_info.srWindow.Bottom - bluey->con_buf_info.srWindow.Top + 1);
 #else
-	bluey->row_count = (unsigned int)bluey->size.ws_row;
-	bluey->col_count = (unsigned int)bluey->size.ws_col;
+	bluey->row_count = (unsigned int)bluey->win_size.ws_row;
+	bluey->col_count = (unsigned int)bluey->win_size.ws_col;
 #endif
 }
 
 int Write_Standard_Output(char* output_str) {
     int   return_val;
-    return_val = fputs(output, stdout);
+    return_val = fputs(output_str, stdout);
     if (return_val == EOF) {
         Report_Last_Error("fputs");
         return BLUEY_ERROR;
     } else if (return_val == 0) {
         return BLUEY_SUCCESS;
     }
-    return BLUEY_UNREACHABLE; 
     }
-
-int Flush_Standard_Output(void) {
-    int   return_val;
-    char* error_str;
-    return_val = fflush(stdout);
-    if (return_val == EOF) {
-        Report_Last_Error("fflush");
-        return BLUEY_ERROR;
-    } else if (return_val == 0) {
-        return BLUEY_SUCCESS;
-    }
-    return BLUEY_UNREACHABLE; 
-}
-
-

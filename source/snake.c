@@ -297,6 +297,8 @@ int main() {
     Bluey_Get_Console_Dimensions(bluey_handle, &console_state.row_count, &console_state.col_count);
     console_grid = Allocate_Console_Grid(console_state.row_count, console_state.col_count);
     Initialize_Console_Grid(console_state.row_count, console_state.col_count, console_grid);
+    Bluey_Enter_Alternate_Screen();
+    Bluey_Hide_Cursor();
     Place_Apple(console_state.row_count, console_state.col_count, &game_state.apple_coord, console_grid);
     Place_Snake_Start(console_state.row_count, console_state.col_count, console_grid, &game_state.head_coord, &game_state.tail_coord);
     frame_buffer = Allocate_Frame_Buffer(console_state.row_count, console_state.col_count);
@@ -349,6 +351,7 @@ int main() {
         frame_buffer_length = Render_Frame(frame_buffer, console_state.row_count, console_state.col_count, console_grid);
         Bluey_Write_Frame(frame_buffer, 1, frame_buffer_length);
         Bluey_Flush_Standard_Input(bluey_handle);
+        fflush(stdout);
         Bluey_Sleep_Milliseconds(90);
     }
     return 0;
