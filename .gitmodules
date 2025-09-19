@@ -4,3 +4,6 @@
 [submodule "extern/metrify"]
 	path = extern/metrify
 	url = git@github.com:Arethusag/metrify.git
+[submodule "extern/lucid"]
+	path = extern/lucid
+	url = git@github.com:Arethusag/lucid.git

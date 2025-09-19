@@ -243,17 +243,17 @@ void Move_Snake_Head(enum Direction head_dir, unsigned int col_count, struct Coo
     console_grid[next_index].tile_type = SNAKE;
 }
 
-size_t Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col_count, struct Cell* console_grid) {
+unsigned int Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col_count, struct Cell* console_grid) {
     unsigned int row, col;
     char* home = "\x1b[H"; /* Prepend home escape so each frame starts at origin (row 0, col 0) */
-    size_t offset = 0;
-    size_t home_length = 3;
+    unsigned int offset = 0;
+    unsigned int home_length = 3;
     memcpy(frame_buffer + offset, home, home_length);
     offset += home_length;
     for (row = 0; row < row_count; row++) {
         for (col = 0; col < col_count; col++) {
             char* tile;
-            size_t tile_length;
+            unsigned int tile_length;
             unsigned int index;
             index = Calculate_Index(col_count, row, col);
 			switch (console_grid[index].tile_type) {
