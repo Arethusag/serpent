@@ -304,7 +304,8 @@ int main() {
     frame_buffer = Allocate_Frame_Buffer(console_state.row_count, console_state.col_count);
     game_state.is_interrupt = 0;
     game_state.is_game_init = 0;
-    game_state.tail_length = 0;
+    game_state.tail_length  = 0;
+    game_state.head_dir     = NONE;
     while (!game_state.is_interrupt) {
         arrow_key = Get_Arrow_Key_Press(bluey_handle);
         if (arrow_key != KEY_NONE) {
