@@ -1,0 +1,3 @@
+[submodule "extern/bluey"]
+	path = extern/bluey
+	url = git@github.com:Arethusag/bluey.git
