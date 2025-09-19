@@ -168,7 +168,7 @@ void Exit_Cleanup(struct Bluey* bluey, unsigned int score) {
     Bluey_Leave_Alternate_Screen();
     Bluey_Show_Cursor();
     printf("Final Score: %d\n", score);
-    fflush(stdout);
+    Bluey_Flush_Standard_Output();
 }
 
 void Move_Snake_Tail(unsigned int col_count, struct Coordinate* tail_coord, struct Coordinate* head_coord, unsigned int tail_length, struct Cell* console_grid) {
@@ -247,7 +247,7 @@ size_t Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col
     unsigned int row, col;
     char* home = "\x1b[H"; /* Prepend home escape so each frame starts at origin (row 0, col 0) */
     size_t offset = 0;
-    size_t home_length = strlen(home);
+    size_t home_length = 3;
     memcpy(frame_buffer + offset, home, home_length);
     offset += home_length;
     for (row = 0; row < row_count; row++) {
@@ -290,7 +290,7 @@ int main() {
     struct ConsoleState console_state;
     struct Cell*        console_grid;
     char*               frame_buffer;
-    size_t              frame_buffer_length;
+    unsigned int        frame_buffer_length;
     unsigned int        arrow_key;
     srand(time(NULL));
     Bluey_Init(&bluey_handle);
@@ -351,7 +351,7 @@ int main() {
         frame_buffer_length = Render_Frame(frame_buffer, console_state.row_count, console_state.col_count, console_grid);
         Bluey_Write_Frame(frame_buffer, 1, frame_buffer_length);
         Bluey_Flush_Standard_Input(bluey_handle);
-        fflush(stdout);
+        Bluey_Flush_Standard_Output();
         Bluey_Sleep_Milliseconds(90);
     }
     return 0;
