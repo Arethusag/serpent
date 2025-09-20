@@ -1,5 +1,6 @@
 #include "bluey.h"
 #include "metrify.h"
+#include "lucid.h"
 
 #define KEY_NONE  0
 #define KEY_UP    1001
@@ -171,10 +172,13 @@ void Initialize_Console_Grid(unsigned int row_count, unsigned int col_count, str
     }
 }
 
-struct Coordinate Calculate_Random_Coordinate(unsigned int row_count, unsigned int col_count) {
+struct Coordinate Calculate_Random_Coordinate(unsigned int row_count, unsigned int col_count struct Cell* console_grid) {
     struct Coordinate rand_coord;
-    rand_coord.col = 1 + rand() % (col_count - 2);
-    rand_coord.row = 1 + rand() % (row_count - 2);
+    unsigned int*     playable_grid;
+    unsigned int*     playable_count;
+    unsigned int      rand_index;
+    playable_grid = Calculate_Playable_Grid(row_count, col_count, console_grid, playable_count);
+    rand = Metrify_Get_Seconds_Since_Epoch(
     return rand_coord;
 }
 
