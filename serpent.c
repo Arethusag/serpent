@@ -1,8 +1,5 @@
 #include "bluey.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "metrify.h"
 
 #define KEY_NONE  0
 #define KEY_UP    1001
@@ -101,6 +98,41 @@ char* Allocate_Frame_Buffer(unsigned int row_count, unsigned int col_count) {
 unsigned int Calculate_Index(unsigned int col_count, unsigned int row, unsigned int col) {
     unsigned int index = row * col_count + col;
     return index;
+}
+
+void Calculate_Row_And_Column_From_Index(unsigned int index, unsigned int col_count, unsigned int* out_row, unsigned int* out_col) {
+    unsigned int row;
+    unsigned int col;
+    row = index / col_count;
+    col = index % col_count;
+    *out_row = row;
+    *out_col = col;
+}
+
+unsigned int* Calculate_Playable_Grid(unsigned int row_count, unsigned int col_count, struct Cell* console_grid, unsigned int* out_playable_count) {
+    unsigned int  playable_count;
+    unsigned int* playable_grid;
+    unsigned int  grid_size;
+    unsigned int  grid_index; 
+    unsigned int  playable_index;
+    playable_count = 0;
+    grid_size = row_count * col_count;
+    for (grid_index = 0; grid_index < grid_size; grid_index++) {
+        if (console_grid[grid_index].TileType == EMPTY) {
+            playable_count++;
+        }
+    }
+    if (playable_count == 0) {
+        *out_playable_count = 0;
+        return NULL;
+    }
+    playable_grid = malloc(playable_count * sizeof(unsigned int));
+    for (grid_index = 0; grid_index < grid_size; grid_index++) {
+        if (console_grid[grid_index].TileType == EMPTY) {
+            playable_grid[playable_index] = grid_index;
+        }
+    }
+    return playable_grid;
 }
 
 unsigned int Detect_Border(unsigned int row_count, unsigned int col_count, struct Coordinate coord) {
