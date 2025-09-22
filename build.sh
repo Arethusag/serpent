@@ -1,4 +1,7 @@
-cc -D_POSIX_C_SOURCE=199309L -Wall -Werror -Wno-error=unused-but-set-variable -Wno-error=switch -Wno-switch -Wpedantic -ansi -g \
+cc -D_POSIX_C_SOURCE=199309L -Wall -Werror \
+    -Wno-error=unused-but-set-variable \
+    -Wno-error=switch -Wno-switch -Wpedantic -ansi -g \
+    -fsanitize=address \
     -Iextern/bluey -Iextern/lucid -Iextern/metrify\
     -o serpent \
     serpent.c \

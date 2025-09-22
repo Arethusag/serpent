@@ -1,14 +1,16 @@
 #include "bluey.h"
-#include "metrify.h"
 #include "lucid.h"
+#include "metrify.h"
 
-#define KEY_NONE  0
-#define KEY_UP    1001
-#define KEY_DOWN  1002
-#define KEY_LEFT  1003
-#define KEY_RIGHT 1004
+#define NULL        ((void*)0)
+#define KEY_NONE    0
+#define KEY_UP      1001
+#define KEY_DOWN    1002
+#define KEY_LEFT    1003
+#define KEY_RIGHT   1004
+#define FRAME_SLEEP 120
 
-enum Direction{
+enum Direction {
     NORTH,
     SOUTH,
     EAST,
@@ -16,41 +18,42 @@ enum Direction{
     NONE
 };
 
-enum TileType{
+enum TileType {
     BORDER,
     EMPTY,
     SNAKE,
     APPLE
 };
 
-struct Coordinate{
-	unsigned int row;
-	unsigned int col;
+struct Coordinate {
+    unsigned int row;
+    unsigned int col;
 };
 
-struct ConsoleState{
+struct ConsoleState {
     unsigned int row_count;
     unsigned int col_count;
 };
 
-struct GameState{
-    unsigned int        is_interrupt;
-    unsigned int        is_game_init;
-    unsigned int        tail_length;
-	struct Coordinate   head_coord;
-	struct Coordinate   tail_coord;
-    struct Coordinate   apple_coord;
-    enum Direction      head_dir;
+struct GameState {
+    unsigned int      is_interrupt;
+    unsigned int      is_game_init;
+    unsigned int      tail_length;
+    struct Coordinate head_coord;
+    struct Coordinate tail_coord;
+    struct Coordinate apple_coord;
+    enum Direction    head_dir;
 };
 
-struct Cell{
-    enum TileType    tile_type;
-    enum Direction   travel_dir;
+struct Cell {
+    enum TileType  tile_type;
+    enum Direction travel_dir;
 };
 
-unsigned int Get_Arrow_Key_Press(struct Bluey* bluey_handle) {
+unsigned int Get_Arrow_Key_Press(struct Bluey* bluey_handle)
+{
     unsigned char input_char_seq[3];
-    int return_val;
+    int           return_val;
     return_val = Bluey_Read_Standard_Input_Character(bluey_handle, &input_char_seq[0]);
     if (return_val <= 0) {
         return KEY_NONE;
@@ -66,16 +69,16 @@ unsigned int Get_Arrow_Key_Press(struct Bluey* bluey_handle) {
         }
         if (input_char_seq[1] == '[') {
             switch (input_char_seq[2]) {
-                case 'A':
-                    return KEY_UP;
-                case 'B':
-                    return KEY_DOWN;
-                case 'C':
-                    return KEY_RIGHT;
-                case 'D':
-                    return KEY_LEFT;
-                default:
-                    return KEY_NONE;
+            case 'A':
+                return KEY_UP;
+            case 'B':
+                return KEY_DOWN;
+            case 'C':
+                return KEY_RIGHT;
+            case 'D':
+                return KEY_LEFT;
+            default:
+                return KEY_NONE;
             }
         }
         return KEY_NONE;
@@ -83,43 +86,54 @@ unsigned int Get_Arrow_Key_Press(struct Bluey* bluey_handle) {
     return KEY_NONE;
 }
 
-struct Cell* Allocate_Console_Grid(unsigned int row_count, unsigned int col_count) {
+struct Cell* Allocate_Console_Grid(unsigned int row_count, unsigned int col_count)
+{
     unsigned int number_of_cells = row_count * col_count;
-	return malloc(number_of_cells * sizeof(struct Cell));
+    unsigned int number_of_bytes = number_of_cells * sizeof(struct Cell);
+    void*        out_pointer     = NULL;
+    Lucid_Allocate_Memory(number_of_bytes, &out_pointer);
+    return (struct Cell*)out_pointer;
 }
 
-char* Allocate_Frame_Buffer(unsigned int row_count, unsigned int col_count) {
-    size_t max_bytes_per_cell = 12; /* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
-    size_t newline = 1;
-    size_t padding = 32;
-    size_t number_of_bytes = row_count * (col_count * max_bytes_per_cell + newline) + padding;
-    return malloc(number_of_bytes);
+char* Allocate_Frame_Buffer(unsigned int row_count, unsigned int col_count)
+{
+    unsigned int max_bytes_per_cell = 12; /* Colour (5 bytes) - UTF-8 Glyph (3 bytes) - Colour Reset (4 byte) */
+    unsigned int newline            = 1;
+    unsigned int padding            = 32;
+    unsigned int number_of_bytes    = row_count * (col_count * max_bytes_per_cell + newline) + padding;
+    void*        out_pointer        = NULL;
+    Lucid_Allocate_Memory(number_of_bytes, &out_pointer);
+    return (char*)out_pointer;
 }
 
-unsigned int Calculate_Index(unsigned int col_count, unsigned int row, unsigned int col) {
+unsigned int Calculate_Index(unsigned int col_count, unsigned int row, unsigned int col)
+{
     unsigned int index = row * col_count + col;
     return index;
 }
 
-void Calculate_Row_And_Column_From_Index(unsigned int index, unsigned int col_count, unsigned int* out_row, unsigned int* out_col) {
-    unsigned int row;
-    unsigned int col;
-    row = index / col_count;
-    col = index % col_count;
-    *out_row = row;
-    *out_col = col;
+void Calculate_Coordinate_From_Index(unsigned int index, unsigned int col_count, struct Coordinate* coord)
+{
+    if (coord == NULL || col_count == 0) {
+        return;
+    }
+    coord->row = index / col_count;
+    coord->col = index % col_count;
 }
 
-unsigned int* Calculate_Playable_Grid(unsigned int row_count, unsigned int col_count, struct Cell* console_grid, unsigned int* out_playable_count) {
+unsigned int* Calculate_Playable_Grid(unsigned int row_count, unsigned int col_count, struct Cell* console_grid, unsigned int* out_playable_count)
+{
     unsigned int  playable_count;
+    void*         temp_grid;
     unsigned int* playable_grid;
     unsigned int  grid_size;
-    unsigned int  grid_index; 
+    unsigned int  grid_index;
     unsigned int  playable_index;
+    unsigned long alloc_size;
     playable_count = 0;
-    grid_size = row_count * col_count;
+    grid_size      = row_count * col_count;
     for (grid_index = 0; grid_index < grid_size; grid_index++) {
-        if (console_grid[grid_index].TileType == EMPTY) {
+        if (console_grid[grid_index].tile_type == EMPTY) {
             playable_count++;
         }
     }
@@ -127,24 +141,30 @@ unsigned int* Calculate_Playable_Grid(unsigned int row_count, unsigned int col_c
         *out_playable_count = 0;
         return NULL;
     }
-    playable_grid = malloc(playable_count * sizeof(unsigned int));
+    alloc_size = (unsigned long)playable_count * sizeof(unsigned int);
+    Lucid_Allocate_Memory(alloc_size, &temp_grid);
+    playable_grid  = (unsigned int*)temp_grid;
+    playable_index = 0;
     for (grid_index = 0; grid_index < grid_size; grid_index++) {
-        if (console_grid[grid_index].TileType == EMPTY) {
-            playable_grid[playable_index] = grid_index;
+        if (console_grid[grid_index].tile_type == EMPTY) {
+            playable_grid[playable_index++] = grid_index;
         }
     }
+    *out_playable_count = playable_count;
     return playable_grid;
 }
 
-unsigned int Detect_Border(unsigned int row_count, unsigned int col_count, struct Coordinate coord) {
+unsigned int Detect_Border(unsigned int row_count, unsigned int col_count, struct Coordinate coord)
+{
     if (coord.row == 0 || coord.col == 0 || coord.row == row_count - 1 || coord.col == col_count - 1) {
         return 1;
     } else {
         return 0;
-    } 
+    }
 }
 
-unsigned int Detect_Snake(unsigned int col_count, struct Coordinate coord, struct Cell* console_grid) {
+unsigned int Detect_Snake(unsigned int col_count, struct Coordinate coord, struct Cell* console_grid)
+{
     unsigned int index;
     index = Calculate_Index(col_count, coord.row, coord.col);
     if (console_grid[index].travel_dir != NONE) {
@@ -154,15 +174,16 @@ unsigned int Detect_Snake(unsigned int col_count, struct Coordinate coord, struc
     }
 }
 
-void Initialize_Console_Grid(unsigned int row_count, unsigned int col_count, struct Cell* console_grid) {
-    unsigned int row, col, index; 
+void Initialize_Console_Grid(unsigned int row_count, unsigned int col_count, struct Cell* console_grid)
+{
+    unsigned int      row, col, index;
     struct Coordinate coord;
     for (row = 0; row < row_count; row++) {
         for (col = 0; col < col_count; col++) {
-            index = Calculate_Index(col_count, row, col);
+            index                          = Calculate_Index(col_count, row, col);
             console_grid[index].travel_dir = NONE;
-            coord.row = row;
-            coord.col = col;
+            coord.row                      = row;
+            coord.col                      = col;
             if (Detect_Border(row_count, col_count, coord)) {
                 console_grid[index].tile_type = BORDER;
             } else {
@@ -172,61 +193,74 @@ void Initialize_Console_Grid(unsigned int row_count, unsigned int col_count, str
     }
 }
 
-struct Coordinate Calculate_Random_Coordinate(unsigned int row_count, unsigned int col_count struct Cell* console_grid) {
+struct Coordinate Calculate_Random_Coordinate(unsigned int row_count, unsigned int col_count, struct Cell* console_grid)
+{
     struct Coordinate rand_coord;
     unsigned int*     playable_grid;
-    unsigned int*     playable_count;
+    unsigned int      playable_count;
     unsigned int      rand_index;
-    playable_grid = Calculate_Playable_Grid(row_count, col_count, console_grid, playable_count);
-    rand = Metrify_Get_Seconds_Since_Epoch(
+    unsigned int      grid_index;
+
+    playable_grid = Calculate_Playable_Grid(row_count, col_count, console_grid, &playable_count);
+    Metrify_Random_Number(playable_count, &rand_index);
+    grid_index = playable_grid[rand_index];
+    Calculate_Coordinate_From_Index(grid_index, col_count, &rand_coord);
+    Lucid_Free_Memory(playable_grid);
     return rand_coord;
 }
 
-void Place_Apple(unsigned int row_count, unsigned int col_count, struct Coordinate* apple_coord, struct Cell* console_grid) {
+void Place_Apple(unsigned int row_count, unsigned int col_count, struct Coordinate* apple_coord, struct Cell* console_grid)
+{
     unsigned int index;
-    *apple_coord = Calculate_Random_Coordinate(row_count, col_count);
-    index = Calculate_Index(col_count, apple_coord->row, apple_coord->col);
-	console_grid[index].tile_type = APPLE;
+    *apple_coord = Calculate_Random_Coordinate(row_count, col_count, console_grid);
+    index        = Calculate_Index(col_count, apple_coord->row, apple_coord->col);
+
+    console_grid[index].tile_type = APPLE;
 }
 
-void Place_Snake_Start(unsigned int row_count, unsigned int col_count, struct Cell* console_grid, struct Coordinate* head_coord, struct Coordinate* tail_coord) {
-    unsigned int index;
+void Place_Snake_Start(unsigned int row_count, unsigned int col_count, struct Cell* console_grid, struct Coordinate* head_coord, struct Coordinate* tail_coord)
+{
+    unsigned int      index;
     struct Coordinate temp_coord;
-    temp_coord = Calculate_Random_Coordinate(row_count, col_count);
+
+    temp_coord  = Calculate_Random_Coordinate(row_count, col_count, console_grid);
     *head_coord = temp_coord;
     *tail_coord = temp_coord;
-    index = Calculate_Index(col_count, temp_coord.row, temp_coord.col);
+    index       = Calculate_Index(col_count, temp_coord.row, temp_coord.col);
+
     console_grid[index].tile_type = SNAKE;
 }
 
-void Exit_Cleanup(struct Bluey* bluey, unsigned int score) {
+void Exit_Cleanup(struct Bluey* bluey, unsigned int score)
+{
     Bluey_Deinit(bluey);
     Bluey_Leave_Alternate_Screen();
     Bluey_Show_Cursor();
-    printf("Final Score: %d\n", score);
+    Bluey_Format_Standard_Output("Final Score: %d\n", score);
     Bluey_Flush_Standard_Output();
 }
 
-void Move_Snake_Tail(unsigned int col_count, struct Coordinate* tail_coord, struct Coordinate* head_coord, unsigned int tail_length, struct Cell* console_grid) {
+void Move_Snake_Tail(unsigned int col_count, struct Coordinate* tail_coord, struct Coordinate* head_coord, unsigned int tail_length, struct Cell* console_grid)
+{
     int current_index, next_row, next_col;
     current_index = Calculate_Index(col_count, tail_coord->row, tail_coord->col);
     switch (console_grid[current_index].travel_dir) {
     case NORTH:
         next_row = tail_coord->row - 1;
         next_col = tail_coord->col;
-    break;
+        break;
     case SOUTH:
         next_row = tail_coord->row + 1;
         next_col = tail_coord->col;
-    break;
-    case EAST: 
+        break;
+    case EAST:
         next_row = tail_coord->row;
         next_col = tail_coord->col + 1;
-    break;
-    case WEST: 
+        break;
+    case WEST:
         next_row = tail_coord->row;
         next_col = tail_coord->col - 1;
-    break;
+        break;
     }
     console_grid[current_index].travel_dir = NONE;
     if (tail_coord->row == head_coord->row && tail_coord->col == head_coord->col && tail_length > 1) {
@@ -238,7 +272,8 @@ void Move_Snake_Tail(unsigned int col_count, struct Coordinate* tail_coord, stru
     tail_coord->col = next_col;
 }
 
-unsigned int Eat_Apple(unsigned int row_count, unsigned int col_count, struct Coordinate* apple_coord, struct Coordinate head_coord, struct Cell* console_grid) {
+unsigned int Eat_Apple(unsigned int row_count, unsigned int col_count, struct Coordinate* apple_coord, struct Coordinate head_coord, struct Cell* console_grid)
+{
     if (apple_coord->row == head_coord.row && apple_coord->col == head_coord.col) {
         Place_Apple(row_count, col_count, apple_coord, console_grid);
         return 1;
@@ -247,72 +282,77 @@ unsigned int Eat_Apple(unsigned int row_count, unsigned int col_count, struct Co
     }
 }
 
-void Update_Travel_Direction(enum Direction head_dir, unsigned int col_count, struct Coordinate* head_coord, struct Cell* console_grid) {
+void Update_Travel_Direction(enum Direction head_dir, unsigned int col_count, struct Coordinate* head_coord, struct Cell* console_grid)
+{
     unsigned int index;
-    index = Calculate_Index(col_count, head_coord->row, head_coord->col);
+    index                          = Calculate_Index(col_count, head_coord->row, head_coord->col);
     console_grid[index].travel_dir = head_dir;
 }
 
-void Move_Snake_Head(enum Direction head_dir, unsigned int col_count, struct Coordinate* head_coord, struct Cell* console_grid) {
+void Move_Snake_Head(enum Direction head_dir, unsigned int col_count, struct Coordinate* head_coord, struct Cell* console_grid)
+{
     int next_index, next_row, next_col;
     switch (head_dir) {
     case NORTH:
         next_row = head_coord->row - 1;
         next_col = head_coord->col;
-    break;
+        break;
     case SOUTH:
         next_row = head_coord->row + 1;
         next_col = head_coord->col;
-    break;
-    case EAST: 
+        break;
+    case EAST:
         next_row = head_coord->row;
         next_col = head_coord->col + 1;
-    break;
-    case WEST: 
+        break;
+    case WEST:
         next_row = head_coord->row;
         next_col = head_coord->col - 1;
-    break;
+        break;
     }
-    next_index = Calculate_Index(col_count, next_row, next_col);
+    next_index      = Calculate_Index(col_count, next_row, next_col);
     head_coord->row = next_row;
     head_coord->col = next_col;
+
     console_grid[next_index].tile_type = SNAKE;
 }
 
-unsigned int Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col_count, struct Cell* console_grid) {
+unsigned int Render_Frame(char* frame_buffer, unsigned int row_count, unsigned int col_count, struct Cell* console_grid)
+{
     unsigned int row, col;
-    char* home = "\x1b[H"; /* Prepend home escape so each frame starts at origin (row 0, col 0) */
-    unsigned int offset = 0;
+    char*        home = "\x1b[H"; /* Prepend home escape so each frame starts at origin
+                                     (row 0, col 0) */
+    unsigned int offset      = 0;
     unsigned int home_length = 3;
-    memcpy(frame_buffer + offset, home, home_length);
+    Lucid_Memory_Copy(frame_buffer + offset, home, home_length);
     offset += home_length;
     for (row = 0; row < row_count; row++) {
         for (col = 0; col < col_count; col++) {
-            char* tile;
+            char*        tile;
             unsigned int tile_length;
             unsigned int index;
             index = Calculate_Index(col_count, row, col);
-			switch (console_grid[index].tile_type) {
-				case BORDER:
-                    tile = "\x1b[37m\xE2\x96\x88\x1b[0m"; /* Light grey full-block */
-                    tile_length = 12; /* Colour: 5 bytes, Full block: 3 bytes, Reset: 4 bytes */
-				break;
-				case EMPTY:
-					tile = " ";
-                    tile_length = 1;
-				break;
-				case SNAKE:
-                    tile = "\x1b[32m\xE2\x96\x88\x1b[0m"; /* Green full-block */
-                    tile_length = 12;
-				break;
-				case APPLE:
-                    tile = "\x1b[31m\xE2\x96\x88\x1b[0m"; /* Red full-block */
-                    tile_length = 12;
-				break;
-			}
-            memcpy(frame_buffer + offset, tile, tile_length);
+            switch (console_grid[index].tile_type) {
+            case BORDER:
+                tile        = "\x1b[37m\xE2\x96\x88\x1b[0m"; /* Light grey full-block */
+                tile_length = 12;                            /* Colour: 5 bytes, Full block: 3 bytes, Reset: 4 bytes */
+                break;
+            case EMPTY:
+                tile        = " ";
+                tile_length = 1;
+                break;
+            case SNAKE:
+                tile        = "\x1b[32m\xE2\x96\x88\x1b[0m"; /* Green full-block */
+                tile_length = 12;
+                break;
+            case APPLE:
+                tile        = "\x1b[31m\xE2\x96\x88\x1b[0m"; /* Red full-block */
+                tile_length = 12;
+                break;
+            }
+            Lucid_Memory_Copy(frame_buffer + offset, tile, tile_length);
             offset += tile_length;
-		}
+        }
         if (row + 1u < row_count) {
             frame_buffer[offset++] = '\n';
         }
@@ -320,15 +360,16 @@ unsigned int Render_Frame(char* frame_buffer, unsigned int row_count, unsigned i
     return offset;
 }
 
-int main() {
+int main()
+{
     struct Bluey*       bluey_handle;
-	struct GameState    game_state;
+    struct GameState    game_state;
     struct ConsoleState console_state;
     struct Cell*        console_grid;
     char*               frame_buffer;
     unsigned int        frame_buffer_length;
     unsigned int        arrow_key;
-    srand(time(NULL));
+    Metrify_Set_Time_Based_Seed();
     Bluey_Init(&bluey_handle);
     Bluey_Get_Console_Dimensions(bluey_handle, &console_state.row_count, &console_state.col_count);
     console_grid = Allocate_Console_Grid(console_state.row_count, console_state.col_count);
@@ -337,7 +378,7 @@ int main() {
     Bluey_Hide_Cursor();
     Place_Apple(console_state.row_count, console_state.col_count, &game_state.apple_coord, console_grid);
     Place_Snake_Start(console_state.row_count, console_state.col_count, console_grid, &game_state.head_coord, &game_state.tail_coord);
-    frame_buffer = Allocate_Frame_Buffer(console_state.row_count, console_state.col_count);
+    frame_buffer            = Allocate_Frame_Buffer(console_state.row_count, console_state.col_count);
     game_state.is_interrupt = 0;
     game_state.is_game_init = 0;
     game_state.tail_length  = 0;
@@ -347,30 +388,30 @@ int main() {
         if (arrow_key != KEY_NONE) {
             if (!game_state.is_game_init) {
                 game_state.is_game_init = 1;
-                game_state.tail_length = 1;
+                game_state.tail_length  = 1;
             }
             switch (arrow_key) {
             case KEY_UP:
                 if (game_state.head_dir != SOUTH) {
                     game_state.head_dir = NORTH;
                 }
-			break;
+                break;
             case KEY_DOWN:
                 if (game_state.head_dir != NORTH) {
                     game_state.head_dir = SOUTH;
                 }
-			break;
+                break;
             case KEY_RIGHT:
                 if (game_state.head_dir != WEST) {
                     game_state.head_dir = EAST;
                 }
-			break;
+                break;
             case KEY_LEFT:
                 if (game_state.head_dir != EAST) {
                     game_state.head_dir = WEST;
                 }
-			break;
-			}
+                break;
+            }
         }
         if (game_state.is_game_init) {
             Update_Travel_Direction(game_state.head_dir, console_state.col_count, &game_state.head_coord, console_grid);
@@ -380,16 +421,17 @@ int main() {
             } else {
                 game_state.tail_length++;
             }
-            if (Detect_Border(console_state.row_count, console_state.col_count, game_state.head_coord) || Detect_Snake(console_state.col_count, game_state.head_coord, console_grid)) {
+            if (Detect_Border(console_state.row_count, console_state.col_count, game_state.head_coord)
+                || Detect_Snake(console_state.col_count, game_state.head_coord, console_grid)) {
                 Exit_Cleanup(bluey_handle, game_state.tail_length);
-                exit(0);
+                Bluey_Console_Exit();
             }
         }
         frame_buffer_length = Render_Frame(frame_buffer, console_state.row_count, console_state.col_count, console_grid);
         Bluey_Write_Frame(frame_buffer, 1, frame_buffer_length);
-        Bluey_Flush_Standard_Input(bluey_handle);
+        /* Bluey_Flush_Standard_Input(bluey_handle); */
         Bluey_Flush_Standard_Output();
-        Bluey_Sleep_Milliseconds(90);
+        Bluey_Sleep_Milliseconds(FRAME_SLEEP);
     }
     return 0;
 }
